@@ -1,7 +1,5 @@
 /**
- * GitHub Downloader v5 - Bot API Multipart for Thumbnail
- * Uses native Bot API for c2d/c2v (100% thumb support)
- * Uses GramJS only for large file downloads
+ * GitHub Downloader v6 - FFmpeg Thumb Embed (Ultimate Fix)
  */
 
 const { TelegramClient } = require("telegram");
@@ -31,10 +29,10 @@ async function downloadFromTelegram(fileId, savePath) {
     const writer = fs.createWriteStream(savePath);
     resp.data.pipe(writer);
     await new Promise((r) => writer.on('finish', r));
-    return savePath;
+    return fInfo.data.result.file_path;
 }
 
-async function sendWithBotAPI(filePath, thumbPath, isDocument, caption) {
+async function sendViaFormData(filePath, isDocument, caption) {
     const form = new FormData();
     form.append('chat_id', chatId);
     form.append('caption', caption);
@@ -47,41 +45,34 @@ async function sendWithBotAPI(filePath, thumbPath, isDocument, caption) {
         form.append('supports_streaming', 'true');
     }
 
-    if (thumbPath && fs.existsSync(thumbPath)) {
-        form.append('thumbnail', fs.createReadStream(thumbPath));
-    }
-
     const endpoint = isDocument ? 'sendDocument' : 'sendVideo';
-    const resp = await axios.post(`${TG_API}/${endpoint}`, form, {
+    await axios.post(`${TG_API}/${endpoint}`, form, {
         headers: form.getHeaders(),
         maxBodyLength: Infinity,
         maxContentLength: Infinity
     });
-
-    return resp.data;
 }
 
 (async () => {
-    console.log(`🚀 v5 - Mode: ${mode}, Chat: ${chatId}`);
-
+    console.log(`🚀 v6 - Mode: ${mode}, Chat: ${chatId}`);
     fs.ensureDirSync(tempDir);
 
     let finalFilePath = "";
     let thumbPath = "";
 
     try {
-        // --- 1. GET TARGET FILE ---
         if (mode === "download") {
-            // Use GramJS for large file downloads
+            // GramJS for large downloads
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, { connectionRetries: 5 });
             await client.start({ botAuthToken: botToken });
 
             finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
+            console.log("🛠 Downloading from URL...");
             execSync(`yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate -o "${finalFilePath}" "${url}"`);
 
             await client.sendFile(chatId, {
                 file: finalFilePath,
-                caption: "✅ **Downloaded Successfully!**",
+                caption: "✅ **Downloaded!**",
                 supportsStreaming: true,
                 workers: 16
             });
@@ -90,27 +81,32 @@ async function sendWithBotAPI(filePath, thumbPath, isDocument, caption) {
             process.exit(0);
         }
 
-        // --- c2d / c2v: Use Bot API Multipart (100% Thumb Support) ---
-        console.log("🛠 Downloading target file from Telegram...");
-        const fInfo = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
-        const ext = path.extname(fInfo.data.result.file_path) || '.mp4';
-        finalFilePath = path.join(tempDir, `file_${Date.now()}${ext}`);
-        await downloadFromTelegram(targetFileId, finalFilePath);
-        console.log("✅ Target file downloaded.");
+        // --- c2d / c2v ---
+        console.log("🛠 Downloading target file...");
+        const tgPath = await downloadFromTelegram(targetFileId, path.join(tempDir, `source${path.extname((await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`)).data.result.file_path)}`));
+        finalFilePath = path.join(tempDir, `source${path.extname(tgPath)}`);
+        console.log("✅ Target file ready.");
 
-        // --- 2. GET THUMBNAIL ---
+        // --- Embed Thumbnail using FFmpeg ---
         if (thumbFileId && thumbFileId !== "null") {
             console.log("🛠 Downloading thumbnail...");
             thumbPath = path.join(tempDir, `thumb.jpg`);
             await downloadFromTelegram(thumbFileId, thumbPath);
-            console.log("✅ Thumbnail downloaded.");
+            console.log("✅ Thumbnail ready.");
+
+            // Embed thumbnail directly into the video file metadata
+            const embeddedPath = path.join(tempDir, `embedded_${Date.now()}.mp4`);
+            console.log("🛠 Embedding thumbnail into video with FFmpeg...");
+            execSync(`ffmpeg -i "${finalFilePath}" -i "${thumbPath}" -map 0:v -map 0:a? -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic "${embeddedPath}" -y`);
+            finalFilePath = embeddedPath;
+            console.log("✅ Thumbnail embedded into video.");
         }
 
-        // --- 3. SEND VIA BOT API (Multipart - Native Thumb Support) ---
-        console.log("📤 Sending via Bot API...");
+        // --- Send File ---
         const isDocument = (mode === "c2d");
         const caption = isDocument ? "📁 **Converted to Document**" : "✅ **Custom Thumbnail Applied!**";
-        await sendWithBotAPI(finalFilePath, thumbPath, isDocument, caption);
+        console.log(`📤 Sending as ${isDocument ? "Document" : "Video"}...`);
+        await sendViaFormData(finalFilePath, isDocument, caption);
 
         console.log("✨ All done!");
     } catch (err) {
