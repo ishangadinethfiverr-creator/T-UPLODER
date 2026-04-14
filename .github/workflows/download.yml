@@ -26,10 +26,13 @@ jobs:
           sudo chmod a+rx /usr/local/bin/yt-dlp
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Run Downloader Script
+      - name: Run Processing Script
         env:
-          VIDEO_URL: ${{ github.event.client_payload.url }}
+          MODE: ${{ github.event.client_payload.mode }}
+          URL: ${{ github.event.client_payload.url }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
+          THUMB_FILE_ID: ${{ github.event.client_payload.thumb_file_id }}
           API_ID: 36437118
           API_HASH: "0f5923b0fdee99f860a523ffbcb78ca5"
           BOT_TOKEN: "8782359868:AAGLuGGwmzMkefsf8KFG4pzekkpXxalRAMU"
