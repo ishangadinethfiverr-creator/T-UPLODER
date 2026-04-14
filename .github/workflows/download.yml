@@ -1,0 +1,36 @@
+name: IDS Hybrid Downloader
+
+on:
+  repository_dispatch:
+    types: [start_download]
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install telegram axios fs-extra
+
+      - name: Install yt-dlp & ffmpeg
+        run: |
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run Downloader Script
+        env:
+          VIDEO_URL: ${{ github.event.client_payload.url }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          API_ID: 36437118
+          API_HASH: "0f5923b0fdee99f860a523ffbcb78ca5"
+          BOT_TOKEN: "8782359868:AAGLuGGwmzMkefsf8KFG4pzekkpXxalRAMU"
+        run: node github_downloader.js
