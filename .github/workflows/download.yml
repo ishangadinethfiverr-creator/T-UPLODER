@@ -18,9 +18,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install telegram axios fs-extra
+          npm install telegram axios fs-extra form-data
 
-      - name: Install yt-dlp & ffmpeg (Only for download mode)
+      - name: Install yt-dlp & ffmpeg (Download mode only)
         if: github.event.client_payload.mode == 'download'
         run: |
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
