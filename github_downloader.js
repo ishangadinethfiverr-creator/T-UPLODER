@@ -149,7 +149,7 @@ async function downloadFromTelegramObj(fileId, savePath) {
                 let lastSpeedTime = startTime;
                 let speedBytes = 0;
 
-                await client.downloadMedia(msg.media, {
+                await client.downloadMedia(originalMsg.media, {
                     outputFile: finalFilePath,
                     progressCallback: async (downloaded, total) => {
                         const now = Date.now();
@@ -171,7 +171,6 @@ async function downloadFromTelegramObj(fileId, savePath) {
                     }
                 });
             }
-        }
         
         console.log("✅ Target file ready.");
 
