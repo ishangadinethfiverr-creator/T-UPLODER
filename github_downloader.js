@@ -37,7 +37,7 @@ async function sendViaFormData(filePath, isDocument, caption, thumbPath) {
     const form = new FormData();
     form.append('chat_id', chatId);
     form.append('caption', caption);
-    form.append('parse_mode', 'Markdown');
+    form.append('parse_mode', 'HTML');
     if (thumbPath && fs.existsSync(thumbPath)) {
         form.append('thumb', fs.createReadStream(thumbPath));
     }
@@ -127,7 +127,11 @@ function humanBytes(bytes) {
 
         const isDoc = (mode === "c2d");
         const filename = path.basename(finalFilePath).replace('.document', '');
-        const caption = `💎 **IDS MOVIE PLANET**\n\n🎥 **Name:** \`${filename}\`\n📦 **Size:** \`${fileSize}\`\n⏰ **Duration:** \`${durationStr}\`\n\n🏷 **By:** ${CHANNEL_NAME}`;
+        const caption = `<b>💎 IDS MOVIE PLANET</b>\n\n` +
+                        `🎥 <b>Name:</b> <code>${filename}</code>\n` + 
+                        `📦 <b>Size:</b> <code>${fileSize}</code>\n` + 
+                        `⏰ <b>Duration:</b> <code>${durationStr}</code>\n\n` + 
+                        `🏷 <b>By:</b> ${CHANNEL_NAME}`;
 
         if (isDoc) {
             const docPath = finalFilePath + ".document";
