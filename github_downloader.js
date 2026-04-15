@@ -1,5 +1,5 @@
 /**
- * GitHub Downloader v6 - FFmpeg Thumb Embed (Ultimate Fix)
+ * GitHub Downloader v7 Ultimate - Standardized Thumbs & Smart Metadata
  */
 
 const { TelegramClient } = require("telegram");
@@ -21,6 +21,7 @@ const thumbFileId = process.env.THUMB_FILE_ID;
 
 const TG_API = `https://api.telegram.org/bot${botToken}`;
 const tempDir = path.join(__dirname, 'temp');
+const CHANNEL_NAME = "@IDS_UPLOADER"; // <--- ඔබේ චැනල් එක මෙතන දාන්න
 
 async function downloadFromTelegram(fileId, savePath) {
     const fInfo = await axios.get(`${TG_API}/getFile?file_id=${fileId}`);
@@ -37,20 +38,15 @@ async function sendViaFormData(filePath, isDocument, caption, thumbPath) {
     form.append('chat_id', chatId);
     form.append('caption', caption);
     form.append('parse_mode', 'Markdown');
-
-    // --- Added Thumbnail parameter for UI Preview ---
     if (thumbPath && fs.existsSync(thumbPath)) {
-        console.log("📎 Adding thumb parameter to Telegram API call...");
         form.append('thumb', fs.createReadStream(thumbPath));
     }
-
     if (isDocument) {
         form.append('document', fs.createReadStream(filePath));
     } else {
         form.append('video', fs.createReadStream(filePath));
         form.append('supports_streaming', 'true');
     }
-
     const endpoint = isDocument ? 'sendDocument' : 'sendVideo';
     await axios.post(`${TG_API}/${endpoint}`, form, {
         headers: form.getHeaders(),
@@ -59,10 +55,17 @@ async function sendViaFormData(filePath, isDocument, caption, thumbPath) {
     });
 }
 
-(async () => {
-    console.log(`🚀 v6 (Hybrid) - Mode: ${mode}, Chat: ${chatId}`);
-    fs.ensureDirSync(tempDir);
+function humanBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
+(async () => {
+    console.log(`🚀 v7 Ultimate - Mode: ${mode}, Chat: ${chatId}`);
+    fs.ensureDirSync(tempDir);
     let finalFilePath = "";
     let thumbPath = "";
 
@@ -70,72 +73,74 @@ async function sendViaFormData(filePath, isDocument, caption, thumbPath) {
         if (mode === "download") {
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, { connectionRetries: 5 });
             await client.start({ botAuthToken: botToken });
-
             finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-            console.log("🛠 Downloading from URL...");
-            execSync(`yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate -o "${finalFilePath}" "${url}"`);
-
-            await client.sendFile(chatId, {
-                file: finalFilePath,
-                caption: "✅ **Downloaded!**",
-                supportsStreaming: true,
-                workers: 16
-            });
-
+            execSync(`yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best" -o "${finalFilePath}" "${url}"`);
+            await client.sendFile(chatId, { file: finalFilePath, caption: "✅ **Downloaded!**", supportsStreaming: true });
             fs.removeSync(tempDir);
             process.exit(0);
         }
 
         // --- c2d / c2v ---
-        console.log("🛠 Downloading target file...");
         const pathGetFile = (await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`)).data.result.file_path;
         finalFilePath = path.join(tempDir, `source${path.extname(pathGetFile)}`);
         await downloadFromTelegram(targetFileId, finalFilePath);
-        console.log("✅ Target file ready.");
 
-        // --- 1. Identify Thumbnail Path ---
+        // --- 1. Smart Thumb Handling ---
         const globalThumb = path.join(__dirname, 'thumb.jpg');
+        let rawThumb = "";
         if (thumbFileId && thumbFileId !== "null") {
-            thumbPath = path.join(tempDir, `thumb_new.jpg`);
-            await downloadFromTelegram(thumbFileId, thumbPath);
-            console.log("✅ New specific thumbnail ready.");
+            rawThumb = path.join(tempDir, 'raw_thumb.jpg');
+            await downloadFromTelegram(thumbFileId, rawThumb);
         } else if (fs.existsSync(globalThumb)) {
-            thumbPath = globalThumb;
-            console.log("✅ Using global thumb from repo.");
+            rawThumb = globalThumb;
         }
 
-        // --- 2. Process with FFmpeg (Internal Embed) ---
-        if (thumbPath && mode !== "c2d") { // Documents don't always need embedding, but videos do
-            const embeddedPath = path.join(tempDir, `processed_${Date.now()}.mp4`);
-            console.log("🛠 Processing with FFmpeg (Metadata Embed)...");
-            // Use mjpeg for better compatibility, -c copy for speed
-            execSync(`ffmpeg -i "${finalFilePath}" -i "${thumbPath}" -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic "${embeddedPath}" -y`);
-            finalFilePath = embeddedPath;
+        if (rawThumb) {
+            console.log("🛠 Standardizing thumbnail (320x320)...");
+            thumbPath = path.join(tempDir, 'thumb_320.jpg');
+            execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -y "${thumbPath}"`);
         }
 
-        // --- 3. Send File with 'thumb' Parameter (UI Preview) ---
-        let isDocument = (mode === "c2d");
-        const captionText = isDocument ? "📁 **Converted to Document**" : "✅ **Custom Thumbnail Applied!**";
-        
-        if (isDocument) {
-            // Force Telegram to treat as document by changing extension
+        // --- 2. Advanced Metadata Injection ---
+        if (mode !== "c2d") {
+            const outPath = path.join(tempDir, `branded_${Date.now()}.mp4`);
+            console.log("🛠 Injecting Branding & Metadata...");
+            let cmd = `ffmpeg -i "${finalFilePath}" `;
+            if (thumbPath) cmd += `-i "${thumbPath}" -map 0 -map 1 -c:v:1 mjpeg -disposition:v:1 attached_pic `;
+            else cmd += `-map 0 `;
+            cmd += `-c copy -metadata title="${path.basename(finalFilePath)}" -metadata author="${CHANNEL_NAME}" -metadata comment="Processed by IDS" -y "${outPath}"`;
+            execSync(cmd);
+            finalFilePath = outPath;
+        }
+
+        // --- 3. Smart Caption Generation ---
+        const stats = fs.statSync(finalFilePath);
+        const fileSize = humanBytes(stats.size);
+        let durationStr = "N/A";
+        try {
+            const probe = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${finalFilePath}"`).toString().trim();
+            const sec = Math.floor(parseFloat(probe));
+            durationStr = new Date(sec * 1000).toISOString().substr(11, 8);
+        } catch(e) {}
+
+        const isDoc = (mode === "c2d");
+        const filename = path.basename(finalFilePath).replace('.document', '');
+        const caption = `💎 **IDS MOVIE PLANET**\n\n🎥 **Name:** \`${filename}\`\n📦 **Size:** \`${fileSize}\`\n⏰ **Duration:** \`${durationStr}\`\n\n🏷 **By:** ${CHANNEL_NAME}`;
+
+        if (isDoc) {
             const docPath = finalFilePath + ".document";
             fs.renameSync(finalFilePath, docPath);
             finalFilePath = docPath;
         }
 
-        console.log(`📤 Sending as ${isDocument ? "Document" : "Video"}...`);
-        await sendViaFormData(finalFilePath, isDocument, captionText, thumbPath);
+        console.log("📤 Sending to Telegram...");
+        await sendViaFormData(finalFilePath, isDoc, caption, thumbPath);
+        console.log("✨ Mission Accomplished!");
 
-        console.log("✨ All done!");
     } catch (err) {
         console.error("❌ Error:", err.message);
-        await axios.post(`${TG_API}/sendMessage`, {
-            chat_id: chatId,
-            text: `❌ Error: ${err.message}`
-        });
+        await axios.post(`${TG_API}/sendMessage`, { chat_id: chatId, text: `❌ **Error:** ${err.message}` });
     }
-
     fs.removeSync(tempDir);
     process.exit(0);
 })();
