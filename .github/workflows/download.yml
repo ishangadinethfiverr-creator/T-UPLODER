@@ -32,7 +32,10 @@ jobs:
           URL: ${{ github.event.client_payload.url }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
+          TARGET_MESSAGE_ID: ${{ github.event.client_payload.target_message_id }}
+          NEW_FILE_NAME: ${{ github.event.client_payload.new_file_name }}
           THUMB_FILE_ID: ${{ github.event.client_payload.thumb_file_id }}
+          EDIT_MESSAGE_ID: ${{ github.event.client_payload.edit_message_id }}
           API_ID: 36437118
           API_HASH: "0f5923b0fdee99f860a523ffbcb78ca5"
           BOT_TOKEN: "8782359868:AAGLuGGwmzMkefsf8KFG4pzekkpXxalRAMU"
