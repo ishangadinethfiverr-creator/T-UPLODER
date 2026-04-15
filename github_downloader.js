@@ -98,7 +98,9 @@ function humanBytes(bytes) {
         if (rawThumb) {
             console.log("🛠 Standardizing thumbnail (320x320)...");
             thumbPath = path.join(tempDir, 'thumb_320.jpg');
-            execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -y "${thumbPath}"`);
+            // Added -frames:v 1 to ensure a single valid image output
+            execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -frames:v 1 -y "${thumbPath}"`);
+            console.log("✅ Thumbnail standardized.");
         }
 
         // --- 2. Advanced Metadata Injection ---
