@@ -32,11 +32,17 @@ async function downloadFromTelegram(fileId, savePath) {
     return fInfo.data.result.file_path;
 }
 
-async function sendViaFormData(filePath, isDocument, caption) {
+async function sendViaFormData(filePath, isDocument, caption, thumbPath) {
     const form = new FormData();
     form.append('chat_id', chatId);
     form.append('caption', caption);
     form.append('parse_mode', 'Markdown');
+
+    // --- Added Thumbnail parameter for UI Preview ---
+    if (thumbPath && fs.existsSync(thumbPath)) {
+        console.log("📎 Adding thumb parameter to Telegram API call...");
+        form.append('thumb', fs.createReadStream(thumbPath));
+    }
 
     if (isDocument) {
         form.append('document', fs.createReadStream(filePath));
@@ -54,7 +60,7 @@ async function sendViaFormData(filePath, isDocument, caption) {
 }
 
 (async () => {
-    console.log(`🚀 v6 - Mode: ${mode}, Chat: ${chatId}`);
+    console.log(`🚀 v6 (Hybrid) - Mode: ${mode}, Chat: ${chatId}`);
     fs.ensureDirSync(tempDir);
 
     let finalFilePath = "";
@@ -62,7 +68,6 @@ async function sendViaFormData(filePath, isDocument, caption) {
 
     try {
         if (mode === "download") {
-            // GramJS for large downloads
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, { connectionRetries: 5 });
             await client.start({ botAuthToken: botToken });
 
@@ -83,30 +88,37 @@ async function sendViaFormData(filePath, isDocument, caption) {
 
         // --- c2d / c2v ---
         console.log("🛠 Downloading target file...");
-        const tgPath = await downloadFromTelegram(targetFileId, path.join(tempDir, `source${path.extname((await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`)).data.result.file_path)}`));
-        finalFilePath = path.join(tempDir, `source${path.extname(tgPath)}`);
+        const pathGetFile = (await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`)).data.result.file_path;
+        finalFilePath = path.join(tempDir, `source${path.extname(pathGetFile)}`);
+        await downloadFromTelegram(targetFileId, finalFilePath);
         console.log("✅ Target file ready.");
 
-        // --- Embed Thumbnail using FFmpeg ---
+        // --- 1. Identify Thumbnail Path ---
+        const globalThumb = path.join(__dirname, 'thumb.jpg');
         if (thumbFileId && thumbFileId !== "null") {
-            console.log("🛠 Downloading thumbnail...");
-            thumbPath = path.join(tempDir, `thumb.jpg`);
+            thumbPath = path.join(tempDir, `thumb_new.jpg`);
             await downloadFromTelegram(thumbFileId, thumbPath);
-            console.log("✅ Thumbnail ready.");
-
-            // Embed thumbnail directly into the video file metadata
-            const embeddedPath = path.join(tempDir, `embedded_${Date.now()}.mp4`);
-            console.log("🛠 Embedding thumbnail into video with FFmpeg...");
-            execSync(`ffmpeg -i "${finalFilePath}" -i "${thumbPath}" -map 0:v -map 0:a? -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic "${embeddedPath}" -y`);
-            finalFilePath = embeddedPath;
-            console.log("✅ Thumbnail embedded into video.");
+            console.log("✅ New specific thumbnail ready.");
+        } else if (fs.existsSync(globalThumb)) {
+            thumbPath = globalThumb;
+            console.log("✅ Using global thumb from repo.");
         }
 
-        // --- Send File ---
+        // --- 2. Process with FFmpeg (Internal Embed) ---
+        if (thumbPath && mode !== "c2d") { // Documents don't always need embedding, but videos do
+            const embeddedPath = path.join(tempDir, `processed_${Date.now()}.mp4`);
+            console.log("🛠 Processing with FFmpeg (Metadata Embed)...");
+            // Use mjpeg for better compatibility, -c copy for speed
+            execSync(`ffmpeg -i "${finalFilePath}" -i "${thumbPath}" -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic "${embeddedPath}" -y`);
+            finalFilePath = embeddedPath;
+        }
+
+        // --- 3. Send File with 'thumb' Parameter (UI Preview) ---
         const isDocument = (mode === "c2d");
-        const caption = isDocument ? "📁 **Converted to Document**" : "✅ **Custom Thumbnail Applied!**";
+        const captionText = isDocument ? "📁 **Converted to Document**" : "✅ **Custom Thumbnail Applied!**";
+        
         console.log(`📤 Sending as ${isDocument ? "Document" : "Video"}...`);
-        await sendViaFormData(finalFilePath, isDocument, caption);
+        await sendViaFormData(finalFilePath, isDocument, captionText, thumbPath);
 
         console.log("✨ All done!");
     } catch (err) {
