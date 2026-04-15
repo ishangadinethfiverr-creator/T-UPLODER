@@ -114,9 +114,16 @@ async function sendViaFormData(filePath, isDocument, caption, thumbPath) {
         }
 
         // --- 3. Send File with 'thumb' Parameter (UI Preview) ---
-        const isDocument = (mode === "c2d");
+        let isDocument = (mode === "c2d");
         const captionText = isDocument ? "📁 **Converted to Document**" : "✅ **Custom Thumbnail Applied!**";
         
+        if (isDocument) {
+            // Force Telegram to treat as document by changing extension
+            const docPath = finalFilePath + ".document";
+            fs.renameSync(finalFilePath, docPath);
+            finalFilePath = docPath;
+        }
+
         console.log(`📤 Sending as ${isDocument ? "Document" : "Video"}...`);
         await sendViaFormData(finalFilePath, isDocument, captionText, thumbPath);
 
