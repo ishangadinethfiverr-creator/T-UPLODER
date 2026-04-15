@@ -14,16 +14,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: |
           npm install telegram axios fs-extra form-data
 
-      - name: Install yt-dlp & ffmpeg
+      - name: Install yt-dlp (Download mode only)
+        if: github.event.client_payload.mode == 'download'
         run: |
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
+
+      - name: Install ffmpeg (for thumb embed on c2d/c2v)
+        if: github.event.client_payload.mode != 'download'
+        run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Run Processing Script
@@ -32,7 +37,8 @@ jobs:
           URL: ${{ github.event.client_payload.url }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
-          API_ID: ${{ secrets.API_ID }}
-          API_HASH: ${{ secrets.API_HASH }}
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          THUMB_FILE_ID: ${{ github.event.client_payload.thumb_file_id }}
+          API_ID: 36437118
+          API_HASH: "0f5923b0fdee99f860a523ffbcb78ca5"
+          BOT_TOKEN: "8782359868:AAGLuGGwmzMkefsf8KFG4pzekkpXxalRAMU"
         run: node github_downloader.js
