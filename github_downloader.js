@@ -88,16 +88,27 @@ async function sendViaFormData(filePath, isDocument, caption) {
         console.log("✅ Target file ready.");
 
         // --- Embed Thumbnail using FFmpeg ---
-        if (thumbFileId && thumbFileId !== "null") {
-            console.log("🛠 Downloading thumbnail...");
+        const localThumb = path.join(__dirname, 'thumb.jpg');
+        
+        if ((thumbFileId && thumbFileId !== "null") || fs.existsSync(localThumb)) {
+            console.log("🛠 Handling thumbnail...");
             thumbPath = path.join(tempDir, `thumb.jpg`);
-            await downloadFromTelegram(thumbFileId, thumbPath);
-            console.log("✅ Thumbnail ready.");
+
+            if (thumbFileId && thumbFileId !== "null") {
+                await downloadFromTelegram(thumbFileId, thumbPath);
+            } else {
+                fs.copySync(localThumb, thumbPath);
+                console.log("📂 Using global thumbnail from repository.");
+            }
 
             // Embed thumbnail directly into the video file metadata
             const embeddedPath = path.join(tempDir, `embedded_${Date.now()}.mp4`);
             console.log("🛠 Embedding thumbnail into video with FFmpeg...");
-            execSync(`ffmpeg -i "${finalFilePath}" -i "${thumbPath}" -map 0:v -map 0:a? -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic "${embeddedPath}" -y`);
+            
+            // Refined FFmpeg command for Telegram: mjpeg is better than png
+            // -map 0 copies all original streams, -map 1 adds the thumbnail as a video stream
+            execSync(`ffmpeg -i "${finalFilePath}" -i "${thumbPath}" -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic "${embeddedPath}" -y`);
+            
             finalFilePath = embeddedPath;
             console.log("✅ Thumbnail embedded into video.");
         }
