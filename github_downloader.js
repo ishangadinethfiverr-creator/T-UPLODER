@@ -1,5 +1,5 @@
 /**
- * GitHub Downloader v7 Ultimate - Standardized Thumbs & Smart Metadata
+ * GitHub Downloader v8 Ultimate - Bug Fixed & Secured
  */
 
 const { TelegramClient } = require("telegram");
@@ -21,7 +21,7 @@ const thumbFileId = process.env.THUMB_FILE_ID;
 
 const TG_API = `https://api.telegram.org/bot${botToken}`;
 const tempDir = path.join(__dirname, 'temp');
-const CHANNEL_NAME = "@IDS_UPLOADER"; // <--- ඔබේ චැනල් එක මෙතන දාන්න
+const CHANNEL_NAME = "<b>@IDS_UPLOADER</b>"; 
 
 async function downloadFromTelegram(fileId, savePath) {
     const fInfo = await axios.get(`${TG_API}/getFile?file_id=${fileId}`);
@@ -64,7 +64,7 @@ function humanBytes(bytes) {
 }
 
 (async () => {
-    console.log(`🚀 v7 Ultimate - Mode: ${mode}, Chat: ${chatId}`);
+    console.log(`🚀 v8 Ultimate - Mode: ${mode}, Chat: ${chatId}`);
     fs.ensureDirSync(tempDir);
     let finalFilePath = "";
     let thumbPath = "";
@@ -74,21 +74,29 @@ function humanBytes(bytes) {
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, { connectionRetries: 5 });
             await client.start({ botAuthToken: botToken });
             finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
+            console.log("🛠 Downloading via yt-dlp...");
             execSync(`yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best" -o "${finalFilePath}" "${url}"`);
-            await client.sendFile(chatId, { file: finalFilePath, caption: "✅ **Downloaded!**", supportsStreaming: true });
+            
+            await client.sendFile(chatId, { 
+                file: finalFilePath, 
+                caption: "<b>✅ Downloaded via IDS Bot!</b>", 
+                parseMode: "html",
+                supportsStreaming: true 
+            });
             fs.removeSync(tempDir);
             process.exit(0);
         }
 
         // --- c2d / c2v ---
         const pathGetFile = (await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`)).data.result.file_path;
-        finalFilePath = path.join(tempDir, `source${path.extname(pathGetFile)}`);
+        const originalExt = path.extname(pathGetFile) || ".mp4";
+        finalFilePath = path.join(tempDir, `source${originalExt}`);
         await downloadFromTelegram(targetFileId, finalFilePath);
 
-        // --- 1. Smart Thumb Handling ---
+        // --- 1. Identify & Resize Thumbnail ---
         const globalThumb = path.join(__dirname, 'thumb.jpg');
         let rawThumb = "";
-        if (thumbFileId && thumbFileId !== "null") {
+        if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
             rawThumb = path.join(tempDir, 'raw_thumb.jpg');
             await downloadFromTelegram(thumbFileId, rawThumb);
         } else if (fs.existsSync(globalThumb)) {
@@ -98,24 +106,21 @@ function humanBytes(bytes) {
         if (rawThumb) {
             console.log("🛠 Standardizing thumbnail (320x320)...");
             thumbPath = path.join(tempDir, 'thumb_320.jpg');
-            // Added -frames:v 1 to ensure a single valid image output
             execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -frames:v 1 -y "${thumbPath}"`);
-            console.log("✅ Thumbnail standardized.");
         }
 
-        // --- 2. Advanced Metadata Injection ---
+        // --- 2. Process with Metadata (Branding) ---
         if (mode !== "c2d") {
             const outPath = path.join(tempDir, `branded_${Date.now()}.mp4`);
-            console.log("🛠 Injecting Branding & Metadata...");
             let cmd = `ffmpeg -i "${finalFilePath}" `;
             if (thumbPath) cmd += `-i "${thumbPath}" -map 0 -map 1 -c:v:1 mjpeg -disposition:v:1 attached_pic `;
             else cmd += `-map 0 `;
-            cmd += `-c copy -metadata title="${path.basename(finalFilePath)}" -metadata author="${CHANNEL_NAME}" -metadata comment="Processed by IDS" -y "${outPath}"`;
+            cmd += `-c copy -metadata title="${path.basename(finalFilePath)}" -metadata author="${CHANNEL_NAME.replace(/<[^>]*>/g, '')}" -y "${outPath}"`;
             execSync(cmd);
             finalFilePath = outPath;
         }
 
-        // --- 3. Smart Caption Generation ---
+        // --- 3. Send to Telegram ---
         const stats = fs.statSync(finalFilePath);
         const fileSize = humanBytes(stats.size);
         let durationStr = "N/A";
@@ -126,22 +131,16 @@ function humanBytes(bytes) {
         } catch(e) {}
 
         const isDoc = (mode === "c2d");
-        const filename = path.basename(finalFilePath).replace('.document', '');
+        const filename = path.basename(finalFilePath);
         const caption = `<b>💎 IDS MOVIE PLANET</b>\n\n` +
                         `🎥 <b>Name:</b> <code>${filename}</code>\n` + 
                         `📦 <b>Size:</b> <code>${fileSize}</code>\n` + 
                         `⏰ <b>Duration:</b> <code>${durationStr}</code>\n\n` + 
                         `🏷 <b>By:</b> ${CHANNEL_NAME}`;
 
-        if (isDoc) {
-            const docPath = finalFilePath + ".document";
-            fs.renameSync(finalFilePath, docPath);
-            finalFilePath = docPath;
-        }
-
-        console.log("📤 Sending to Telegram...");
+        console.log(`📤 Uploading as ${isDoc ? "Document" : "Video"}...`);
         await sendViaFormData(finalFilePath, isDoc, caption, thumbPath);
-        console.log("✨ Mission Accomplished!");
+        console.log("✨ All tasks completed!");
 
     } catch (err) {
         console.error("❌ Error:", err.message);
