@@ -98,7 +98,7 @@ function getDuration(filePath) {
 
         // Format to 320x320 for perfect Telegram Display
         thumbPath = path.join(tempDir, "thumb_320.jpg");
-        execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -frames:v 1 -y "${thumbPath}"`, { stdio: "inherit" });
+        execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -qscale:v 5 -frames:v 1 -y "${thumbPath}"`, { stdio: "inherit" });
         console.log("✅ Custom Thumbnail downloaded and standardized.");
       } catch (e) {
         console.log("⚠️ Failed to process custom thumbnail.", e.message);
@@ -159,7 +159,7 @@ function getDuration(filePath) {
 
     await client.sendFile(chatId, {
       file: sendPath,
-      thumb: (thumbPath && !isDoc) ? thumbPath : undefined,
+      thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
       forceDocument: isDoc,
       caption: captionText,
       parseMode: "html",
