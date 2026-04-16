@@ -97,7 +97,10 @@ function humanBytes(bytes) {
         // --- 1. Identify & Resize Thumbnail ---
         const globalThumb = path.join(__dirname, 'thumb.jpg');
         let rawThumb = "";
-        if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
+        
+        if (thumbFileId === "repo") {
+            if (fs.existsSync(globalThumb)) rawThumb = globalThumb;
+        } else if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
             rawThumb = path.join(tempDir, 'raw_thumb.jpg');
             await downloadFromTelegram(thumbFileId, rawThumb);
         } else if (fs.existsSync(globalThumb)) {
