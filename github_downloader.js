@@ -133,14 +133,15 @@ function getDuration(filePath) {
     if (newName) {
       displayName = newName;
       const renamedPath = path.join(tempDir, `${newName}${finalExt}`);
-      fs.copySync(finalFilePath, renamedPath);
+      if (finalFilePath !== renamedPath) fs.copySync(finalFilePath, renamedPath);
       sendPath = renamedPath;
     } else {
-      // Just copy to force the clean extension
-       displayName = displayName.replace(/^(source_|branded_)/, "");
-       const renamedPath = path.join(tempDir, `${displayName}${finalExt}`);
-       fs.copySync(finalFilePath, renamedPath);
+      // Clean temporary prefixes
+       let cleanName = displayName.replace(/^(source|branded|video|audio)_?/, "") || "IDS_Media";
+       const renamedPath = path.join(tempDir, `${cleanName}${finalExt}`);
+       if (finalFilePath !== renamedPath) fs.copySync(finalFilePath, renamedPath);
        sendPath = renamedPath;
+       displayName = cleanName;
     }
 
     // ══════════════ 4. UPLOAD VIA GRAMJS ══════════════
