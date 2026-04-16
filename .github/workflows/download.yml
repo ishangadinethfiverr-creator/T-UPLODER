@@ -42,6 +42,7 @@ jobs:
           URL:            ${{ github.event.client_payload.url }}
           CHAT_ID:        ${{ github.event.client_payload.chat_id }}
           TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
+          SOURCE_MSG_ID:  ${{ github.event.client_payload.source_msg_id }}
           THUMB_FILE_ID:  ${{ github.event.client_payload.thumb_file_id }}
           NEW_NAME:       ${{ github.event.client_payload.new_name }}
           # ✅ GitHub Secrets හරහා - hardcode නැහැ
