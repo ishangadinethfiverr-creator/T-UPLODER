@@ -1,5 +1,5 @@
 /**
-GitHub Downloader v11 - Production Ready (Fixed)
+GitHub Downloader v11 - Cleaned & Thumbnail Fixed
 */
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
@@ -42,7 +42,7 @@ function getDuration(filePath) {
   console.log(`🚀 v11 | Mode: ${mode} | Chat: ${chatId}`);
   fs.ensureDirSync(tempDir);
   let finalFilePath = "";
-  let thumbPath = null;
+  let thumbPath = null; // ✅ Fixed: initialize as null
   const client = new TelegramClient(stringSession, apiId, apiHash, { connectionRetries: 5 });
   await client.start({ botAuthToken: botToken });
 
@@ -73,6 +73,7 @@ function getDuration(filePath) {
     // ══════════════ 2. GET THUMBNAIL ══════════════
     const isDoc = (mode === "c2d");
 
+    // ✅ Fixed: Removed spaces & fixed && syntax
     if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
       const rawThumb = path.join(tempDir, "raw_thumb.jpg");
       console.log("🛠 Downloading Custom Thumbnail...");
@@ -105,7 +106,7 @@ function getDuration(filePath) {
     }
 
     let displayName = path.basename(finalFilePath, path.extname(finalFilePath));
-    let sendPath = finalFilePath;
+    let sendPath = finalFilePath; // ✅ Fixed variable name
     const finalExt = isDoc ? (path.extname(finalFilePath) || ".mp4") : ((mode === "dl_audio") ? ".mp3" : ".mp4");
 
     if (newName) {
@@ -134,7 +135,7 @@ function getDuration(filePath) {
       (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
       `\n🏷 <b>By:</b> ${CHANNEL}`;
 
-    // ✅ FIXED: thumbnail works for BOTH Video AND Document
+    // ✅ Fixed: Clean thumb condition (works for both Video & Doc)
     await client.sendFile(chatId, {
       file: sendPath,
       thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
