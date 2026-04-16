@@ -15,6 +15,7 @@ const chatId = process.env.CHAT_ID;
 const mode = process.env.MODE || "download";
 const url = process.env.URL;
 const targetFileId = process.env.TARGET_FILE_ID;
+const sourceMsgId = parseInt(process.env.SOURCE_MSG_ID);
 const thumbFileId = process.env.THUMB_FILE_ID;
 const newName = process.env.NEW_NAME;
 const TG_API = `https://api.telegram.org/bot${botToken}`;
@@ -59,15 +60,38 @@ function getDuration(filePath) {
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
-      const getFile = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
-      const origExt = path.extname(getFile.data.result.file_path) || ".mp4";
-      finalFilePath = path.join(tempDir, `source${origExt}`);
-      const dUrl = `https://api.telegram.org/file/bot${botToken}/${getFile.data.result.file_path}`;
-      const flow = await axios({ url: dUrl, responseType: "stream" });
-      const writer = fs.createWriteStream(finalFilePath);
-      flow.data.pipe(writer);
-      await new Promise((resolve, reject) => { writer.on("finish", resolve); writer.on("error", reject); });
-      console.log("✅ Target file downloaded.");
+      let downloadedViaGramJS = false;
+      if (sourceMsgId && !isNaN(sourceMsgId)) {
+        const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
+        if (msgs && msgs.length > 0 && msgs[0].media) {
+           console.log("⬇️ Downloading large file via GramJS (No 20MB Limit)...");
+           let origExt = ".mp4";
+           if (msgs[0].document) {
+              const attrs = msgs[0].document.attributes;
+              if (attrs) {
+                 const fnAttr = attrs.find(a => a.className === "DocumentAttributeFilename");
+                 if (fnAttr) origExt = path.extname(fnAttr.fileName);
+              }
+           }
+           finalFilePath = path.join(tempDir, `source${origExt}`);
+           await client.downloadMedia(msgs[0].media, { outputFile: finalFilePath, workers: 4 });
+           console.log("✅ Target file downloaded via GramJS.");
+           downloadedViaGramJS = true;
+        }
+      }
+      
+      if (!downloadedViaGramJS) {
+         console.log("⬇️ Downloading via Bot API (Fallback)...");
+         const getFile = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
+         const origExt = path.extname(getFile.data.result.file_path) || ".mp4";
+         finalFilePath = path.join(tempDir, `source${origExt}`);
+         const dUrl = `https://api.telegram.org/file/bot${botToken}/${getFile.data.result.file_path}`;
+         const flow = await axios({ url: dUrl, responseType: "stream" });
+         const writer = fs.createWriteStream(finalFilePath);
+         flow.data.pipe(writer);
+         await new Promise((resolve, reject) => { writer.on("finish", resolve); writer.on("error", reject); });
+         console.log("✅ Target file downloaded via Web API.");
+      }
     }
 
     // ══════════════ 2. GET THUMBNAIL ══════════════
