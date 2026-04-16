@@ -1,4 +1,4 @@
-name: IDS Hybrid Downloader
+name: IDS Hybrid Downloader v10
 
 on:
   repository_dispatch:
@@ -14,27 +14,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install dependencies
-        run: |
-          npm install telegram axios fs-extra
+      - name: Install Node dependencies
+        run: npm install telegram axios fs-extra form-data
 
-      - name: Install yt-dlp & ffmpeg (Only for download mode)
-        if: github.event.client_payload.mode == 'download'
+      # yt-dlp: download + dl_audio modes
+      - name: Install yt-dlp
+        if: |
+          github.event.client_payload.mode == 'download' ||
+          github.event.client_payload.mode == 'dl_audio'
         run: |
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+            -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # ffmpeg: c2v + c2d modes (thumb standardize + metadata inject)
+      - name: Install ffmpeg + ffprobe
+        if: |
+          github.event.client_payload.mode == 'c2v' ||
+          github.event.client_payload.mode == 'c2d'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Run Processing Script
         env:
-          MODE: ${{ github.event.client_payload.mode }}
-          URL: ${{ github.event.client_payload.url }}
-          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          MODE:           ${{ github.event.client_payload.mode }}
+          URL:            ${{ github.event.client_payload.url }}
+          CHAT_ID:        ${{ github.event.client_payload.chat_id }}
           TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
-          THUMB_FILE_ID: ${{ github.event.client_payload.thumb_file_id }}
-          API_ID: 36437118
-          API_HASH: "0f5923b0fdee99f860a523ffbcb78ca5"
-          BOT_TOKEN: "8782359868:AAGLuGGwmzMkefsf8KFG4pzekkpXxalRAMU"
+          THUMB_FILE_ID:  ${{ github.event.client_payload.thumb_file_id }}
+          NEW_NAME:       ${{ github.event.client_payload.new_name }}
+          # ✅ GitHub Secrets හරහා - hardcode නැහැ
+          API_ID:         ${{ secrets.API_ID }}
+          API_HASH:       ${{ secrets.API_HASH }}
+          BOT_TOKEN:      ${{ secrets.BOT_TOKEN }}
         run: node github_downloader.js
