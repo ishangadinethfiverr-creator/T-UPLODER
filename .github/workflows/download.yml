@@ -33,6 +33,7 @@ jobs:
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
           THUMB_FILE_ID: ${{ github.event.client_payload.thumb_file_id }}
+          NEW_NAME: ${{ github.event.client_payload.new_name }}
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
