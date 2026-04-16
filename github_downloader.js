@@ -18,6 +18,7 @@ const mode = process.env.MODE || "download";
 const url = process.env.URL;
 const targetFileId = process.env.TARGET_FILE_ID;
 const thumbFileId = process.env.THUMB_FILE_ID;
+const newName = process.env.NEW_NAME; // New parameter from Worker
 
 const TG_API = `https://api.telegram.org/bot${botToken}`;
 const tempDir = path.join(__dirname, 'temp');
@@ -131,7 +132,12 @@ function humanBytes(bytes) {
         } catch(e) {}
 
         const isDoc = (mode === "c2d");
-        const filename = path.basename(finalFilePath);
+        let filename = path.basename(finalFilePath).replace('.document', '');
+        if (newName) {
+            const ext = path.extname(filename);
+            filename = newName.endsWith(ext) ? newName : newName + ext;
+        }
+        
         const caption = `<b>💎 IDS MOVIE PLANET</b>\n\n` +
                         `🎥 <b>Name:</b> <code>${filename}</code>\n` + 
                         `📦 <b>Size:</b> <code>${fileSize}</code>\n` + 
