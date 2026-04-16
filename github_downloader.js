@@ -8,31 +8,31 @@
  */
 
 const { TelegramClient } = require("telegram");
-const { StringSession }  = require("telegram/sessions");
-const { execSync }       = require("child_process");
-const fs                 = require("fs-extra");
-const path               = require("path");
-const axios              = require("axios");
-const FormData           = require("form-data");
+const { StringSession } = require("telegram/sessions");
+const { execSync } = require("child_process");
+const fs = require("fs-extra");
+const path = require("path");
+const axios = require("axios");
+const FormData = require("form-data");
 
-const apiId        = parseInt(process.env.API_ID);
-const apiHash      = process.env.API_HASH;
-const botToken     = process.env.BOT_TOKEN;
-const chatId       = process.env.CHAT_ID;
-const mode         = process.env.MODE || "download";
-const url          = process.env.URL;
+const apiId = parseInt(process.env.API_ID);
+const apiHash = process.env.API_HASH;
+const botToken = process.env.BOT_TOKEN;
+const chatId = process.env.CHAT_ID;
+const mode = process.env.MODE || "download";
+const url = process.env.URL;
 const targetFileId = process.env.TARGET_FILE_ID;
-const thumbFileId  = process.env.THUMB_FILE_ID;
-const newName      = process.env.NEW_NAME;
+const thumbFileId = process.env.THUMB_FILE_ID;
+const newName = process.env.NEW_NAME;
 
-const TG_API  = `https://api.telegram.org/bot${botToken}`;
+const TG_API = `https://api.telegram.org/bot${botToken}`;
 const tempDir = path.join(__dirname, "temp");
 const CHANNEL = "@IDS_UPLOADER"; // ← ඔබේ channel
 
 // ─── Helpers ───────────────────────────────────────────
 
 async function downloadFromTelegram(fileId, savePath) {
-  const res  = await axios.get(`${TG_API}/getFile?file_id=${fileId}`);
+  const res = await axios.get(`${TG_API}/getFile?file_id=${fileId}`);
   const dUrl = `https://api.telegram.org/file/bot${botToken}/${res.data.result.file_path}`;
   const resp = await axios({ url: dUrl, responseType: "stream" });
   const writer = fs.createWriteStream(savePath);
@@ -103,7 +103,7 @@ async function sendError(msg) {
     chat_id: chatId,
     parse_mode: "HTML",
     text: `❌ <b>Error:</b>\n<code>${msg.substring(0, 500)}</code>`
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 // ─── Main ───────────────────────────────────────────────
@@ -113,7 +113,7 @@ async function sendError(msg) {
   fs.ensureDirSync(tempDir);
 
   let finalFilePath = "";
-  let thumbPath     = "";
+  let thumbPath = "";
 
   try {
 
@@ -138,9 +138,9 @@ async function sendError(msg) {
         { stdio: "inherit" }
       );
 
-      const stats    = fs.statSync(finalFilePath);
+      const stats = fs.statSync(finalFilePath);
       const fileSize = humanBytes(stats.size);
-      const fname    = newName ? `${newName}.mp4` : path.basename(finalFilePath);
+      const fname = newName ? `${newName}.mp4` : path.basename(finalFilePath);
 
       await client.sendFile(chatId, {
         file: finalFilePath,
@@ -169,9 +169,9 @@ async function sendError(msg) {
         `-o "${finalFilePath}" "${url}"`,
         { stdio: "inherit" }
       );
-      const stats    = fs.statSync(finalFilePath);
+      const stats = fs.statSync(finalFilePath);
       const fileSize = humanBytes(stats.size);
-      const form     = new FormData();
+      const form = new FormData();
       form.append("chat_id", chatId);
       form.append("audio", fs.createReadStream(finalFilePath));
       form.append("caption", `🎵 <b>Audio Downloaded!</b>\n📦 <b>Size:</b> <code>${fileSize}</code>\n🏷 <b>By:</b> ${CHANNEL}`);
@@ -188,7 +188,7 @@ async function sendError(msg) {
     console.log("⬇️ Downloading target file from Telegram...");
     const getFile = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
     const origExt = path.extname(getFile.data.result.file_path) || ".mp4";
-    finalFilePath  = path.join(tempDir, `source${origExt}`);
+    finalFilePath = path.join(tempDir, `source${origExt}`);
     await downloadFromTelegram(targetFileId, finalFilePath);
     console.log("✅ Target file ready:", path.basename(finalFilePath));
 
@@ -250,10 +250,10 @@ async function sendError(msg) {
     }
 
     // ── Caption ──
-    const stats    = fs.statSync(finalFilePath);
+    const stats = fs.statSync(finalFilePath);
     const fileSize = humanBytes(stats.size);
     const duration = mode === "c2v" ? getDuration(finalFilePath) : "N/A";
-    const isDoc    = mode === "c2d";
+    const isDoc = mode === "c2d";
 
     // ✅ newName: actual file rename on disk so Telegram shows correct filename
     let sendPath = finalFilePath;
@@ -261,7 +261,7 @@ async function sendError(msg) {
 
     if (newName) {
       displayName = newName;
-      const newExt     = isDoc ? origExt : ".mp4";
+      const newExt = isDoc ? origExt : ".mp4";
       const renamedPath = path.join(tempDir, `${newName}${newExt}`);
       fs.copySync(finalFilePath, renamedPath);
       sendPath = renamedPath;
