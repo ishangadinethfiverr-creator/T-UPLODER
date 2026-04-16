@@ -1,4 +1,4 @@
-name: IDS Hybrid Downloader v11
+name: IDS Hybrid Downloader v10
 
 on:
   repository_dispatch:
@@ -17,8 +17,9 @@ jobs:
           node-version: '22'
 
       - name: Install Node dependencies
-        run: npm install telegram axios fs-extra
+        run: npm install telegram axios fs-extra form-data
 
+      # yt-dlp: download + dl_audio modes
       - name: Install yt-dlp
         if: |
           github.event.client_payload.mode == 'download' ||
@@ -28,6 +29,7 @@ jobs:
             -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
+      # ffmpeg: c2v + c2d modes (thumb standardize + metadata inject)
       - name: Install ffmpeg + ffprobe
         if: |
           github.event.client_payload.mode == 'c2v' ||
@@ -42,6 +44,7 @@ jobs:
           TARGET_FILE_ID: ${{ github.event.client_payload.target_file_id }}
           THUMB_FILE_ID:  ${{ github.event.client_payload.thumb_file_id }}
           NEW_NAME:       ${{ github.event.client_payload.new_name }}
+          # ✅ GitHub Secrets හරහා - hardcode නැහැ
           API_ID:         ${{ secrets.API_ID }}
           API_HASH:       ${{ secrets.API_HASH }}
           BOT_TOKEN:      ${{ secrets.BOT_TOKEN }}
