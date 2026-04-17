@@ -57,24 +57,23 @@ function getDuration(filePath) {
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
         
-        let processedUrl = url.split('?')[0]; // Clean tracking params
-        // Convert shorts URL to standard watch URL
+        let processedUrl = url.split('?')[0]; 
         if (processedUrl.includes("/shorts/")) {
            processedUrl = processedUrl.replace("/shorts/", "/watch?v=");
         }
 
-        // Use Cookies if provided
-        // Use tv_embedded & web_embedded which are most stable for servers
-        let ytArgs = `--extractor-args "youtube:player_client=tv_embedded,web_embedded;player_skip=webpage,configs" `;
+        // Final attempt strategy: Force IPv4 & use mobile-first clients
+        let ytArgs = `--force-ipv4 --geo-bypass --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1" `;
+        ytArgs += `--extractor-args "youtube:player_client=ios,tv_embedded,mweb;referer=https://www.youtube.com/" `;
         
         const cookiePath = path.join(process.cwd(), "youtube_cookies.txt");
         if (fs.existsSync(cookiePath)) {
-            console.log("🍪 Using YouTube Cookies for authentication...");
+            console.log("🍪 Using YouTube Cookies...");
             ytArgs += `--cookies "${cookiePath}" `;
         }
         
-        // Use 'best' format first to see if extraction succeeds
-        execSync(`yt-dlp ${ytArgs} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
+        // Use 'best' to ensure we get something
+        execSync(`yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
