@@ -50,8 +50,13 @@ jobs:
           SOURCE_MSG_ID:  ${{ github.event.client_payload.source_msg_id }}
           THUMB_FILE_ID:  ${{ github.event.client_payload.thumb_file_id }}
           NEW_NAME:       ${{ github.event.client_payload.new_name }}
-          # ✅ GitHub Secrets හරහා - hardcode නැහැ
           API_ID:         ${{ secrets.API_ID }}
           API_HASH:       ${{ secrets.API_HASH }}
           BOT_TOKEN:      ${{ secrets.BOT_TOKEN }}
-        run: node github_downloader.js
+          YT_COOKIES_DATA: ${{ secrets.YT_COOKIES }}
+        run: |
+          if [ ! -z "$YT_COOKIES_DATA" ]; then
+            echo "$YT_COOKIES_DATA" > youtube_cookies.txt
+            echo "🍪 YouTube Cookies loaded successfully"
+          fi
+          node github_downloader.js
