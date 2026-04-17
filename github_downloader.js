@@ -57,28 +57,26 @@ function getDuration(filePath) {
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
         
-        // 1. Precise Video ID Extraction
-        let videoId = "";
-        const idMatch = url.match(/(?:v=|\/shorts\/|\/embed\/|\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-        if (idMatch) videoId = idMatch[1];
+        // 1. Better Video ID Extraction
+        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
+        const match = url.match(ytRegex);
+        const videoId = match ? match[1] : null;
         
         let processedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : url;
 
-        // 2. High-Compatibility Server Config
-        // Use android_vr client (very lite) and explicitly set JS interpreter for n-challenge
+        // 2. Optimized Config for Cloud Servers
         let ytArgs = `--force-ipv4 --geo-bypass --no-cookies --no-cache-dir `;
         ytArgs += `--extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
         
-        console.log(`📡 Attempting extraction for Video ID: ${videoId || 'unknown'}`);
+        console.log(`📡 Extraction target: ${videoId ? videoId : 'Full URL'}`);
         
-        // 3. Execution with environment variables
         try {
           execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { 
             stdio: "inherit",
             env: { ...process.env, YTDLP_JS_INTERPRETER: "node" }
           });
         } catch (err) {
-          console.log("⚠️ Standard extraction failed, trying lowest-quality fallback...");
+          console.log("⚠️ Standard extraction failed, trying simple format fallback...");
           execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "best" --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
         }
       }
