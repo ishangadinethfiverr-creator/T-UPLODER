@@ -56,7 +56,8 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        execSync(`yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
+        // Added --extractor-args to bypass YouTube bot checks
+        execSync(`yt-dlp --extractor-args "youtube:player_client=android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
@@ -64,33 +65,33 @@ function getDuration(filePath) {
       if (sourceMsgId && !isNaN(sourceMsgId)) {
         const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
         if (msgs && msgs.length > 0 && msgs[0].media) {
-           console.log("⬇️ Downloading large file via GramJS (No 20MB Limit)...");
-           let origExt = ".mp4";
-           if (msgs[0].document) {
-              const attrs = msgs[0].document.attributes;
-              if (attrs) {
-                 const fnAttr = attrs.find(a => a.className === "DocumentAttributeFilename");
-                 if (fnAttr) origExt = path.extname(fnAttr.fileName);
-              }
-           }
-           finalFilePath = path.join(tempDir, `source${origExt}`);
-           await client.downloadMedia(msgs[0].media, { outputFile: finalFilePath, workers: 4 });
-           console.log("✅ Target file downloaded via GramJS.");
-           downloadedViaGramJS = true;
+          console.log("⬇️ Downloading large file via GramJS (No 20MB Limit)...");
+          let origExt = ".mp4";
+          if (msgs[0].document) {
+            const attrs = msgs[0].document.attributes;
+            if (attrs) {
+              const fnAttr = attrs.find(a => a.className === "DocumentAttributeFilename");
+              if (fnAttr) origExt = path.extname(fnAttr.fileName);
+            }
+          }
+          finalFilePath = path.join(tempDir, `source${origExt}`);
+          await client.downloadMedia(msgs[0].media, { outputFile: finalFilePath, workers: 4 });
+          console.log("✅ Target file downloaded via GramJS.");
+          downloadedViaGramJS = true;
         }
       }
-      
+
       if (!downloadedViaGramJS) {
-         console.log("⬇️ Downloading via Bot API (Fallback)...");
-         const getFile = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
-         const origExt = path.extname(getFile.data.result.file_path) || ".mp4";
-         finalFilePath = path.join(tempDir, `source${origExt}`);
-         const dUrl = `https://api.telegram.org/file/bot${botToken}/${getFile.data.result.file_path}`;
-         const flow = await axios({ url: dUrl, responseType: "stream" });
-         const writer = fs.createWriteStream(finalFilePath);
-         flow.data.pipe(writer);
-         await new Promise((resolve, reject) => { writer.on("finish", resolve); writer.on("error", reject); });
-         console.log("✅ Target file downloaded via Web API.");
+        console.log("⬇️ Downloading via Bot API (Fallback)...");
+        const getFile = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
+        const origExt = path.extname(getFile.data.result.file_path) || ".mp4";
+        finalFilePath = path.join(tempDir, `source${origExt}`);
+        const dUrl = `https://api.telegram.org/file/bot${botToken}/${getFile.data.result.file_path}`;
+        const flow = await axios({ url: dUrl, responseType: "stream" });
+        const writer = fs.createWriteStream(finalFilePath);
+        flow.data.pipe(writer);
+        await new Promise((resolve, reject) => { writer.on("finish", resolve); writer.on("error", reject); });
+        console.log("✅ Target file downloaded via Web API.");
       }
     }
 
@@ -124,7 +125,7 @@ function getDuration(filePath) {
       console.log("🛠 Injecting metadata & thumbnail...");
       const origExt = path.extname(finalFilePath) || ".mp4";
       const actualNamePart = newName || path.basename(finalFilePath, origExt);
-      
+
       let cmd = `ffmpeg -i "${finalFilePath}" `;
       if (thumbPath && fs.existsSync(thumbPath)) {
         // Map 0 (video) and Map 1 (thumbnail), embed as attached_pic
@@ -132,7 +133,7 @@ function getDuration(filePath) {
       } else {
         cmd += `-c copy `;
       }
-      
+
       cmd += `-metadata title="${actualNamePart}" -metadata author="${CHANNEL}" -metadata comment="Processed by IDS" -y "${outPath}"`;
       execSync(cmd, { stdio: "inherit" });
       finalFilePath = outPath;
@@ -161,7 +162,7 @@ function getDuration(filePath) {
     const fileSize = humanBytes(stats.size);
     const duration = (mode === "c2v") ? getDuration(sendPath) : "N/A";
 
-    const captionText = 
+    const captionText =
       `<b>💎 IDS MOVIE PLANET</b>\n\n` +
       `${mode === "dl_audio" ? "🎵 " : (isDoc ? "📁 " : "🎥 ")}<b>Name:</b> <code>${displayName}</code>\n` +
       `📦 <b>Size:</b> <code>${fileSize}</code>\n` +
@@ -185,7 +186,7 @@ function getDuration(filePath) {
     await axios.post(`${TG_API}/sendMessage`, {
       chat_id: chatId, parse_mode: "HTML",
       text: `❌ <b>Error processing file:</b>\n<code>${err.message.substring(0, 500)}</code>`
-    }).catch(() => {});
+    }).catch(() => { });
   }
   fs.removeSync(tempDir);
   process.exit(0);
