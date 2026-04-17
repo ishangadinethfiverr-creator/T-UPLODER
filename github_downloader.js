@@ -1,10 +1,7 @@
 /**
- * GitHub Downloader v12 - PRO VERSION
- *  - Fast Mode: Instant re-delivery with Custom Thumbnail (No Download)
- *  - Worker Boost: 16x Download / 32x Upload for normal modes
- *  - Professional FFmpeg Mapping
- */
-const { TelegramClient, Api } = require("telegram");
+GitHub Downloader v11 - Cleaned & Thumbnail Fixed
+*/
+const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { execSync } = require("child_process");
 const fs = require("fs-extra");
@@ -16,6 +13,7 @@ const apiHash = process.env.API_HASH;
 const botToken = process.env.BOT_TOKEN;
 const chatId = process.env.CHAT_ID;
 const mode = process.env.MODE || "download";
+const url = process.env.URL;
 const targetFileId = process.env.TARGET_FILE_ID;
 const sourceMsgId = parseInt(process.env.SOURCE_MSG_ID);
 const thumbFileId = process.env.THUMB_FILE_ID;
@@ -23,6 +21,7 @@ const newName = process.env.NEW_NAME;
 const TG_API = `https://api.telegram.org/bot${botToken}`;
 const tempDir = path.join(__dirname, "temp");
 const CHANNEL = "@IDS_UPLOADER";
+const stringSession = new StringSession("");
 
 function humanBytes(bytes) {
   if (!bytes || bytes === 0) return "0 B";
@@ -31,100 +30,163 @@ function humanBytes(bytes) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
+function getDuration(filePath) {
+  try {
+    const raw = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`).toString().trim();
+    const sec = Math.floor(parseFloat(raw));
+    if (isNaN(sec)) return "N/A";
+    return new Date(sec * 1000).toISOString().substring(11, 19);
+  } catch { return "N/A"; }
+}
+
 (async () => {
-  console.log(`🚀 v12 Pro-Server | Mode: ${mode} | Starting...`);
+  console.log(`🚀 v11 | Mode: ${mode} | Chat: ${chatId}`);
   fs.ensureDirSync(tempDir);
-  const client = new TelegramClient(new StringSession(""), apiId, apiHash, { connectionRetries: 5 });
+  let finalFilePath = "";
+  let thumbPath = null; // ✅ Fixed: initialize as null
+  const client = new TelegramClient(stringSession, apiId, apiHash, { connectionRetries: 5 });
   await client.start({ botAuthToken: botToken });
 
   try {
-    let thumbPath = null;
+    // ══════════════ 1. DOWNLOAD ══════════════
+    if (mode === "download" || mode === "dl_audio") {
+      console.log(`⬇️ Downloading via yt-dlp (${mode})...`);
+      if (mode === "dl_audio") {
+        finalFilePath = path.join(tempDir, `audio_${Date.now()}.mp3`);
+        execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
+      } else {
+        finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
+        execSync(`yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
+      }
+    } else {
+      console.log("⬇️ Downloading target file from Telegram...");
+      let downloadedViaGramJS = false;
+      if (sourceMsgId && !isNaN(sourceMsgId)) {
+        const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
+        if (msgs && msgs.length > 0 && msgs[0].media) {
+           console.log("⬇️ Downloading large file via GramJS (No 20MB Limit)...");
+           let origExt = ".mp4";
+           if (msgs[0].document) {
+              const attrs = msgs[0].document.attributes;
+              if (attrs) {
+                 const fnAttr = attrs.find(a => a.className === "DocumentAttributeFilename");
+                 if (fnAttr) origExt = path.extname(fnAttr.fileName);
+              }
+           }
+           finalFilePath = path.join(tempDir, `source${origExt}`);
+           await client.downloadMedia(msgs[0].media, { outputFile: finalFilePath, workers: 4 });
+           console.log("✅ Target file downloaded via GramJS.");
+           downloadedViaGramJS = true;
+        }
+      }
+      
+      if (!downloadedViaGramJS) {
+         console.log("⬇️ Downloading via Bot API (Fallback)...");
+         const getFile = await axios.get(`${TG_API}/getFile?file_id=${targetFileId}`);
+         const origExt = path.extname(getFile.data.result.file_path) || ".mp4";
+         finalFilePath = path.join(tempDir, `source${origExt}`);
+         const dUrl = `https://api.telegram.org/file/bot${botToken}/${getFile.data.result.file_path}`;
+         const flow = await axios({ url: dUrl, responseType: "stream" });
+         const writer = fs.createWriteStream(finalFilePath);
+         flow.data.pipe(writer);
+         await new Promise((resolve, reject) => { writer.on("finish", resolve); writer.on("error", reject); });
+         console.log("✅ Target file downloaded via Web API.");
+      }
+    }
 
-    // ══════════════ 1. PREPARE THUMBNAIL ══════════════
+    // ══════════════ 2. GET THUMBNAIL ══════════════
+    const isDoc = (mode === "c2d");
+
+    // ✅ Fixed: Removed spaces & fixed && syntax
     if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
-      console.log("🛠 Downloading Custom Thumbnail...");
       const rawThumb = path.join(tempDir, "raw_thumb.jpg");
+      console.log("🛠 Downloading Custom Thumbnail...");
       try {
         const tInfo = await axios.get(`${TG_API}/getFile?file_id=${thumbFileId}`);
-        const tr = await axios({ url: `https://api.telegram.org/file/bot${botToken}/${tInfo.data.result.file_path}`, responseType: 'stream' });
+        const tUrl = `https://api.telegram.org/file/bot${botToken}/${tInfo.data.result.file_path}`;
+        const tr = await axios({ url: tUrl, responseType: 'stream' });
         const tw = fs.createWriteStream(rawThumb);
         tr.data.pipe(tw);
-        await new Promise((res) => tw.on('finish', res));
+        await new Promise((resolve) => tw.on('finish', resolve));
 
-        thumbPath = path.join(tempDir, "std_thumb.jpg");
-        execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2,format=yuv420p" -qscale:v 5 -frames:v 1 -y "${thumbPath}"`);
-        console.log("✅ Thumbnail ready.");
-      } catch (e) { console.log("⚠️ Thumb error:", e.message); }
+        thumbPath = path.join(tempDir, "thumb_320.jpg");
+        execSync(`ffmpeg -i "${rawThumb}" -vf "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2" -qscale:v 5 -frames:v 1 -y "${thumbPath}"`, { stdio: "inherit" });
+        console.log("✅ Custom Thumbnail standardized.");
+      } catch (e) {
+        console.log("⚠️ Failed to process custom thumbnail.", e.message);
+        thumbPath = null;
+      }
     }
 
-    // ══════════════ 2. DISTRIBUTE BY MODE ══════════════
-
-    if (mode === "fast") {
-      console.log("⚡ FAST MODE: Re-sending via Remote ID...");
-      const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
-      if (msgs && msgs[0]?.media) {
-        await client.sendFile(chatId, {
-          file: msgs[0].media, // MTProto Reference (Instant)
-          thumb: thumbPath,
-          caption: `<b>💎 IDS MOVIE PLANET - FAST</b>\n\n<b>Name:</b> <code>${newName || "Original"}</code>\n🏷 <b>By:</b> ${CHANNEL}`,
-          parseMode: "html",
-          forceDocument: false
-        });
-        console.log("✅ Fast delivery complete!");
-      }
-    } 
-    else {
-      // ══════════════ 3. DOWNLOAD (Normal Modes) ══════════════
-      console.log("⬇️ Downloading via GramJS (Workers: 16)...");
-      const localSource = path.join(tempDir, "source_file");
-      const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
+    // ══════════════ 3. BRANDING & RENAMING ══════════════
+    if (mode === "c2v") {
+      const outPath = path.join(tempDir, `branded_${Date.now()}.mp4`);
+      console.log("🛠 Injecting metadata & thumbnail...");
+      const origExt = path.extname(finalFilePath) || ".mp4";
+      const actualNamePart = newName || path.basename(finalFilePath, origExt);
       
-      if (!msgs || msgs.length === 0 || !msgs[0].media) throw new Error("Could not fetch source message/media");
-      
-      await client.downloadMedia(msgs[0].media, { 
-        outputFile: localSource, 
-        workers: 16 
-      });
-      console.log("✅ Download finished.");
-
-      let processPath = localSource;
-
-      // ══════════════ 4. PROCESS (c2v / c2d) ══════════════
-      if (mode === "c2v") {
-        console.log("🛠 Remuxing for Video Mode (Embedding Thumb)...");
-        const outPath = path.join(tempDir, "processed.mp4");
-        const cmd = thumbPath 
-          ? `ffmpeg -i "${localSource}" -i "${thumbPath}" -map 0:v:0 -map 0:a? -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic -y "${outPath}"`
-          : `ffmpeg -i "${localSource}" -c copy -y "${outPath}"`;
-        execSync(cmd, { stdio: "inherit" });
-        processPath = outPath;
+      let cmd = `ffmpeg -i "${finalFilePath}" `;
+      if (thumbPath && fs.existsSync(thumbPath)) {
+        // Map 0 (video) and Map 1 (thumbnail), embed as attached_pic
+        cmd += `-i "${thumbPath}" -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic `;
+      } else {
+        cmd += `-c copy `;
       }
-
-      // Final Renaming
-      const extension = (mode === "dl_audio") ? ".mp3" : ".mp4";
-      const finalFileName = `${newName || "File"}${extension}`;
-      const renamedPath = path.join(tempDir, finalFileName);
-      fs.copySync(processPath, renamedPath);
-
-      // ══════════════ 5. UPLOAD ══════════════
-      console.log("📤 Uploading (Workers: 32)...");
-      const stats = fs.statSync(renamedPath);
-      await client.sendFile(chatId, {
-        file: renamedPath,
-        thumb: thumbPath,
-        forceDocument: (mode === "c2d"),
-        caption: `<b>💎 IDS MOVIE PLANET</b>\n\n<b>Name:</b> <code>${newName}</code>\n📦 <b>Size:</b> <code>${humanBytes(stats.size)}</code>\n\n🏷 <b>By:</b> ${CHANNEL}`,
-        parseMode: "html",
-        supportsStreaming: (mode !== "c2d"),
-        workers: 32
-      });
+      
+      cmd += `-metadata title="${actualNamePart}" -metadata author="${CHANNEL}" -metadata comment="Processed by IDS" -y "${outPath}"`;
+      execSync(cmd, { stdio: "inherit" });
+      finalFilePath = outPath;
     }
+
+    let displayName = path.basename(finalFilePath, path.extname(finalFilePath));
+    let sendPath = finalFilePath; // ✅ Fixed variable name
+    const finalExt = isDoc ? (path.extname(finalFilePath) || ".mp4") : ((mode === "dl_audio") ? ".mp3" : ".mp4");
+
+    if (newName) {
+      displayName = newName;
+      const renamedPath = path.join(tempDir, `${newName}${finalExt}`);
+      if (finalFilePath !== renamedPath) fs.copySync(finalFilePath, renamedPath);
+      sendPath = renamedPath;
+    } else {
+      let cleanName = displayName.replace(/^(source|branded|video|audio)_?/, "") || "IDS_Media";
+      const renamedPath = path.join(tempDir, `${cleanName}${finalExt}`);
+      if (finalFilePath !== renamedPath) fs.copySync(finalFilePath, renamedPath);
+      sendPath = renamedPath;
+      displayName = cleanName;
+    }
+
+    // ══════════════ 4. UPLOAD ══════════════
+    console.log(`📤 Uploading as ${isDoc ? "Document" : "Video/Audio"}...`);
+    const stats = fs.statSync(sendPath);
+    const fileSize = humanBytes(stats.size);
+    const duration = (mode === "c2v") ? getDuration(sendPath) : "N/A";
+
+    const captionText = 
+      `<b>💎 IDS MOVIE PLANET</b>\n\n` +
+      `${mode === "dl_audio" ? "🎵 " : (isDoc ? "📁 " : "🎥 ")}<b>Name:</b> <code>${displayName}</code>\n` +
+      `📦 <b>Size:</b> <code>${fileSize}</code>\n` +
+      (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
+      `\n🏷 <b>By:</b> ${CHANNEL}`;
+
+    // ✅ Fixed: Clean thumb condition (works for both Video & Doc)
+    await client.sendFile(chatId, {
+      file: sendPath,
+      thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
+      forceDocument: isDoc,
+      caption: captionText,
+      parseMode: "html",
+      supportsStreaming: !isDoc,
+      workers: 16
+    });
 
     console.log("✨ Mission complete!");
   } catch (err) {
-    console.error("❌ Fatal Error:", err);
+    console.error("❌ Fatal Error:", err.message);
+    await axios.post(`${TG_API}/sendMessage`, {
+      chat_id: chatId, parse_mode: "HTML",
+      text: `❌ <b>Error processing file:</b>\n<code>${err.message.substring(0, 500)}</code>`
+    }).catch(() => {});
   }
-  
   fs.removeSync(tempDir);
   process.exit(0);
 })();
