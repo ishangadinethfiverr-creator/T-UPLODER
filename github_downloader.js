@@ -57,16 +57,15 @@ function getDuration(filePath) {
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
         
-        let processedUrl = url;
-        // Convert shorts URL to standard watch URL (often bypasses bot checks)
-        if (url.includes("/shorts/")) {
-           processedUrl = url.replace("/shorts/", "/watch?v=");
+        let processedUrl = url.split('?')[0]; // Clean tracking params
+        // Convert shorts URL to standard watch URL
+        if (processedUrl.includes("/shorts/")) {
+           processedUrl = processedUrl.replace("/shorts/", "/watch?v=");
         }
 
-        // Use Cookies if provided, otherwise robust User-Agent
-        let ytArgs = `--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" `;
-        // Prioritize ios and mweb clients (they often bypass the 'n challenge')
-        ytArgs += `--extractor-args "youtube:player_client=ios,mweb;referer=https://www.youtube.com/" `;
+        // Use Cookies if provided
+        // Use tv_embedded & web_embedded which are most stable for servers
+        let ytArgs = `--extractor-args "youtube:player_client=tv_embedded,web_embedded;player_skip=webpage,configs" `;
         
         const cookiePath = path.join(process.cwd(), "youtube_cookies.txt");
         if (fs.existsSync(cookiePath)) {
@@ -74,8 +73,8 @@ function getDuration(filePath) {
             ytArgs += `--cookies "${cookiePath}" `;
         }
         
-        // Flexible format selection to avoid 'format not available' errors
-        execSync(`yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
+        // Use 'best' format first to see if extraction succeeds
+        execSync(`yt-dlp ${ytArgs} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
