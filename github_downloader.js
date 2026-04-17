@@ -65,7 +65,8 @@ function getDuration(filePath) {
 
         // Use Cookies if provided, otherwise robust User-Agent
         let ytArgs = `--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" `;
-        ytArgs += `--extractor-args "youtube:player_client=android,web;referer=https://www.youtube.com/" `;
+        // Prioritize ios and mweb clients (they often bypass the 'n challenge')
+        ytArgs += `--extractor-args "youtube:player_client=ios,mweb;referer=https://www.youtube.com/" `;
         
         const cookiePath = path.join(process.cwd(), "youtube_cookies.txt");
         if (fs.existsSync(cookiePath)) {
@@ -73,7 +74,8 @@ function getDuration(filePath) {
             ytArgs += `--cookies "${cookiePath}" `;
         }
         
-        execSync(`yt-dlp ${ytArgs} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
+        // Flexible format selection to avoid 'format not available' errors
+        execSync(`yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
