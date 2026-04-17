@@ -56,9 +56,16 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        // Use multiple player clients to increase bypass success rate
-        const ytArgs = `--extractor-args "youtube:player_client=tv_embedded,ios,web_embedded"`;
-        execSync(`yt-dlp ${ytArgs} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
+        
+        let processedUrl = url;
+        // Convert shorts URL to standard watch URL (often bypasses bot checks)
+        if (url.includes("/shorts/")) {
+           processedUrl = url.replace("/shorts/", "/watch?v=");
+        }
+
+        // Use Safari impersonation and standard clients which are more stable
+        const ytArgs = `--impersonate safari --extractor-args "youtube:player_client=web,ios"`;
+        execSync(`yt-dlp ${ytArgs} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
