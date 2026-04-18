@@ -56,8 +56,44 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        // Added --extractor-args to bypass YouTube bot checks
-        execSync(`yt-dlp --extractor-args "youtube:player_client=android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
+        
+        // 1. Platform Detection
+        const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+        let processedUrl = url;
+        let ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" `;
+
+        // 2. Specialized Bypass for YouTube
+        if (isYouTube) {
+          const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
+          const match = url.match(ytRegex);
+          const videoId = match ? match[1] : null;
+          
+          if (videoId) {
+            processedUrl = `https://www.youtube.com/embed/${videoId}`;
+            console.log(`📡 YouTube Bypass Active: ${videoId}`);
+          }
+          ytArgs += `--no-cookies --extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
+        } else {
+          console.log(`🌍 Generic Extraction for: ${new URL(url).hostname}`);
+          // For TikTok and others, sometimes cookies are helpful if available
+          if (fs.existsSync("youtube_cookies.txt")) {
+            ytArgs += `--cookies youtube_cookies.txt `;
+          }
+        }
+        
+        // 3. Execution
+        try {
+          execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { 
+            stdio: "inherit",
+            env: { ...process.env, YTDLP_JS_INTERPRETER: "node" }
+          });
+        } catch (err) {
+          console.log("⚠️ Standard extraction failed, trying simple format fallback...");
+          execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "best" --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { 
+            stdio: "inherit",
+            env: { ...process.env, YTDLP_JS_INTERPRETER: "node" }
+          });
+        }
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
