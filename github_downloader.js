@@ -56,68 +56,8 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        
-        // 0. Resolve Shortened URLs (Essential for TikTok/Shorts redirects in CI)
-        let resolvedUrl = url;
-        try {
-          console.log(`🔍 Resolving URL: ${url}`);
-          const response = await axios.get(url, { 
-            maxRedirects: 5, 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36' },
-            validateStatus: (status) => status >= 200 && status < 400
-          });
-          resolvedUrl = response.request.res.responseUrl || url;
-          if (resolvedUrl !== url) console.log(`✅ Expanded to: ${resolvedUrl}`);
-        } catch (e) {
-          console.log("⚠️ Could not expand URL, using original.");
-          resolvedUrl = url;
-        }
-
-        // 1. Platform Detection
-        const isYouTube = resolvedUrl.includes("youtube.com") || resolvedUrl.includes("youtu.be");
-        let processedUrl = resolvedUrl;
-        let ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" `;
-
-        // 2. Specialized Bypass per Platform
-        if (isYouTube) {
-          const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-          const match = url.match(ytRegex);
-          const videoId = match ? match[1] : null;
-          
-          if (videoId) {
-            processedUrl = `https://www.youtube.com/embed/${videoId}`;
-            console.log(`📡 YouTube Bypass Active: ${videoId}`);
-          }
-          ytArgs += `--no-cookies --extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
-        } else if (resolvedUrl.includes("tiktok.com")) {
-          console.log(`🎵 TikTok Extraction Mode (Embed V2 + Chrome Bypass)`);
-          // Extract TikTok Video ID
-          const ttIdMatch = resolvedUrl.match(/video\/(\d+)/);
-          if (ttIdMatch) {
-            processedUrl = `https://www.tiktok.com/embed/v2/${ttIdMatch[1]}`;
-            console.log(`🔗 Using TikTok Embed V2: ${processedUrl}`);
-          }
-          // Use Chrome impersonate with strict client headers
-          ytArgs = `--geo-bypass --no-cache-dir --no-playlist --impersonate chrome --referer "https://www.tiktok.com/" `;
-          ytArgs += `--add-header "Sec-Ch-Ua: \\"Not A(Brand\\";v=\\"99\\", \\"Google Chrome\\";v=\\"121\\", \\"Chromium\\";v=\\"121\\"" `;
-          ytArgs += `--add-header "Accept-Language: en-US,en;q=0.9" `;
-        } else {
-          console.log(`🌍 Generic Extraction for: ${new URL(resolvedUrl).hostname}`);
-        }
-        
-        // 3. Execution
-        try {
-          execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { 
-            stdio: "inherit",
-            env: { ...process.env, YTDLP_JS_INTERPRETER: "node" }
-          });
-        } catch (err) {
-          console.log("⚠️ Standard extraction failed, trying simple format fallback...");
-          execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "best" --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { 
-            stdio: "inherit",
-            env: { ...process.env, YTDLP_JS_INTERPRETER: "node" }
-          });
-        }
+        // Added --extractor-args to bypass YouTube bot checks
+        execSync(`yt-dlp --extractor-args "youtube:player_client=android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
