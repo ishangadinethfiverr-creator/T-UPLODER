@@ -62,7 +62,7 @@ function getDuration(filePath) {
         let processedUrl = url;
         let ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" `;
 
-        // 2. Specialized Bypass for YouTube
+        // 2. Specialized Bypass per Platform
         if (isYouTube) {
           const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
           const match = url.match(ytRegex);
@@ -73,12 +73,12 @@ function getDuration(filePath) {
             console.log(`📡 YouTube Bypass Active: ${videoId}`);
           }
           ytArgs += `--no-cookies --extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
+        } else if (url.includes("tiktok.com")) {
+          console.log(`🎵 TikTok Extraction Mode`);
+          // TikTok loves mobile User-Agents
+          ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" `;
         } else {
           console.log(`🌍 Generic Extraction for: ${new URL(url).hostname}`);
-          // For TikTok and others, sometimes cookies are helpful if available
-          if (fs.existsSync("youtube_cookies.txt")) {
-            ytArgs += `--cookies youtube_cookies.txt `;
-          }
         }
         
         // 3. Execution
