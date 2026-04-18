@@ -57,9 +57,25 @@ function getDuration(filePath) {
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
         
+        // 0. Resolve Shortened URLs (Essential for TikTok/Shorts redirects in CI)
+        let resolvedUrl = url;
+        try {
+          console.log(`🔍 Resolving URL: ${url}`);
+          const response = await axios.get(url, { 
+            maxRedirects: 5, 
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36' },
+            validateStatus: (status) => status >= 200 && status < 400
+          });
+          resolvedUrl = response.request.res.responseUrl || url;
+          if (resolvedUrl !== url) console.log(`✅ Expanded to: ${resolvedUrl}`);
+        } catch (e) {
+          console.log("⚠️ Could not expand URL, using original.");
+          resolvedUrl = url;
+        }
+
         // 1. Platform Detection
-        const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
-        let processedUrl = url;
+        const isYouTube = resolvedUrl.includes("youtube.com") || resolvedUrl.includes("youtu.be");
+        let processedUrl = resolvedUrl;
         let ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" `;
 
         // 2. Specialized Bypass per Platform
@@ -73,12 +89,12 @@ function getDuration(filePath) {
             console.log(`📡 YouTube Bypass Active: ${videoId}`);
           }
           ytArgs += `--no-cookies --extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
-        } else if (url.includes("tiktok.com")) {
+        } else if (resolvedUrl.includes("tiktok.com")) {
           console.log(`🎵 TikTok Extraction Mode`);
-          // TikTok loves mobile User-Agents
-          ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" `;
+          // TikTok loves mobile User-Agents AND referer
+          ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --referer "https://www.tiktok.com/" --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" `;
         } else {
-          console.log(`🌍 Generic Extraction for: ${new URL(url).hostname}`);
+          console.log(`🌍 Generic Extraction for: ${new URL(resolvedUrl).hostname}`);
         }
         
         // 3. Execution
