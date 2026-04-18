@@ -56,29 +56,8 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        
-        // 1. Better Video ID Extraction
-        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
-        const match = url.match(ytRegex);
-        const videoId = match ? match[1] : null;
-        
-        let processedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-
-        // 2. Optimized Config for Cloud Servers
-        let ytArgs = `--force-ipv4 --geo-bypass --no-cookies --no-cache-dir `;
-        ytArgs += `--extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
-        
-        console.log(`📡 Extraction target: ${videoId ? videoId : 'Full URL'}`);
-        
-        try {
-          execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "bestvideo+bestaudio/best" --merge-output-format mp4 --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { 
-            stdio: "inherit",
-            env: { ...process.env, YTDLP_JS_INTERPRETER: "node" }
-          });
-        } catch (err) {
-          console.log("⚠️ Standard extraction failed, trying simple format fallback...");
-          execSync(`YTDLP_JS_INTERPRETER=node yt-dlp ${ytArgs} -f "best" --no-check-certificate -o "${finalFilePath}" "${processedUrl}"`, { stdio: "inherit" });
-        }
+        // Added --extractor-args to bypass YouTube bot checks
+        execSync(`yt-dlp --extractor-args "youtube:player_client=android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       }
     } else {
       console.log("⬇️ Downloading target file from Telegram...");
