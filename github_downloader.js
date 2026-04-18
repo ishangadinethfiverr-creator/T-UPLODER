@@ -90,17 +90,17 @@ function getDuration(filePath) {
           }
           ytArgs += `--no-cookies --extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
         } else if (resolvedUrl.includes("tiktok.com")) {
-          console.log(`🎵 TikTok Extraction Mode (IPv6 + Safari Bypass)`);
-          // Clean TikTok URL to avoid tracking issues
-          const ttMatch = resolvedUrl.match(/(tiktok\.com\/@[\w.-]+\/video\/\d+)/);
-          if (ttMatch) {
-            processedUrl = `https://www.${ttMatch[1]}`;
-            console.log(`🔗 Cleaned TikTok URL: ${processedUrl}`);
+          console.log(`🎵 TikTok Extraction Mode (Embed V2 + Chrome Bypass)`);
+          // Extract TikTok Video ID
+          const ttIdMatch = resolvedUrl.match(/video\/(\d+)/);
+          if (ttIdMatch) {
+            processedUrl = `https://www.tiktok.com/embed/v2/${ttIdMatch[1]}`;
+            console.log(`🔗 Using TikTok Embed V2: ${processedUrl}`);
           }
-          // Remove force-ipv4 and use Safari impersonation with specific headers
-          ytArgs = `--geo-bypass --no-cache-dir --no-playlist --impersonate safari --referer "https://www.tiktok.com/" `;
+          // Use Chrome impersonate with strict client headers
+          ytArgs = `--geo-bypass --no-cache-dir --no-playlist --impersonate chrome --referer "https://www.tiktok.com/" `;
+          ytArgs += `--add-header "Sec-Ch-Ua: \\"Not A(Brand\\";v=\\"99\\", \\"Google Chrome\\";v=\\"121\\", \\"Chromium\\";v=\\"121\\"" `;
           ytArgs += `--add-header "Accept-Language: en-US,en;q=0.9" `;
-          ytArgs += `--add-header "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8" `;
         } else {
           console.log(`🌍 Generic Extraction for: ${new URL(resolvedUrl).hostname}`);
         }
