@@ -91,8 +91,14 @@ function getDuration(filePath) {
           ytArgs += `--no-cookies --extractor-args "youtube:player_client=android_vr,android;player_skip=configs,webpage" `;
         } else if (resolvedUrl.includes("tiktok.com")) {
           console.log(`🎵 TikTok Extraction Mode`);
-          // TikTok loves mobile User-Agents AND referer
-          ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --referer "https://www.tiktok.com/" --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" `;
+          // Clean TikTok URL to avoid tracking issues
+          const ttMatch = resolvedUrl.match(/(tiktok\.com\/@[\w.-]+\/video\/\d+)/);
+          if (ttMatch) {
+            processedUrl = `https://www.${ttMatch[1]}`;
+            console.log(`🔗 Cleaned TikTok URL: ${processedUrl}`);
+          }
+          // Use impersonate chrome for TLS/headers fingerprinting bypass
+          ytArgs = `--force-ipv4 --geo-bypass --no-cache-dir --no-playlist --impersonate chrome --referer "https://www.tiktok.com/" `;
         } else {
           console.log(`🌍 Generic Extraction for: ${new URL(resolvedUrl).hostname}`);
         }
