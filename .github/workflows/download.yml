@@ -44,8 +44,9 @@ jobs:
           THUMB_FILE_ID:  ${{ github.event.client_payload.thumb_file_id }}
           NEW_NAME:       ${{ github.event.client_payload.new_name }}
           SPLIT_LIMIT:    ${{ github.event.client_payload.split_limit }}
-          # ✅ Dynamic Credentials (Multi-Bot Support)
-          API_ID:         ${{ github.event.client_payload.api_id }}
-          API_HASH:       ${{ github.event.client_payload.api_hash }}
+          # ✅ API Credentials taken from GitHub Secrets (Same for all bots)
+          API_ID:         ${{ secrets.API_ID }}
+          API_HASH:       ${{ secrets.API_HASH }}
+          # ✅ BOT_TOKEN passed dynamically from Cloudflare Worker
           BOT_TOKEN:      ${{ github.event.client_payload.bot_token }}
         run: node github_downloader.js
