@@ -156,29 +156,75 @@ function getDuration(filePath) {
       displayName = cleanName;
     }
 
-    // ══════════════ 4. UPLOAD ══════════════
-    console.log(`📤 Uploading as ${isDoc ? "Document" : "Video/Audio"}...`);
+    // ══════════════ 4. SPLIT & UPLOAD ══════════════
     const stats = fs.statSync(sendPath);
-    const fileSize = humanBytes(stats.size);
-    const duration = (mode === "c2v") ? getDuration(sendPath) : "N/A";
+    
+    // Default limit is 1.9GB, but can be overridden by SPLIT_LIMIT (in MB) for testing
+    let splitMB = 1900;
+    if (process.env.SPLIT_LIMIT && !isNaN(parseInt(process.env.SPLIT_LIMIT))) {
+      splitMB = parseInt(process.env.SPLIT_LIMIT);
+    }
+    const LIMIT = splitMB * 1024 * 1024; 
 
-    const captionText =
-      `<b>💎 IDS MOVIE PLANET</b>\n\n` +
-      `${mode === "dl_audio" ? "🎵 " : (isDoc ? "📁 " : "🎥 ")}<b>Name:</b> <code>${displayName}</code>\n` +
-      `📦 <b>Size:</b> <code>${fileSize}</code>\n` +
-      (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
-      `\n🏷 <b>By:</b> ${CHANNEL}`;
+    if (stats.size > LIMIT) {
+      console.log(`📦 File size (${humanBytes(stats.size)}) exceeds limit (${humanBytes(LIMIT)}). Splitting...`);
+      const archiveBase = path.join(tempDir, `${displayName}.zip`);
+      
+      // Use 7z to split the file into volumes
+      execSync(`7z a -v${splitMB}m "${archiveBase}" "${sendPath}"`, { stdio: "inherit" });
+      
+      const parts = fs.readdirSync(tempDir)
+        .filter(f => f.startsWith(displayName) && f.includes(".zip."))
+        .sort();
 
-    // ✅ Fixed: Clean thumb condition (works for both Video & Doc)
-    await client.sendFile(chatId, {
-      file: sendPath,
-      thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
-      forceDocument: isDoc,
-      caption: captionText,
-      parseMode: "html",
-      supportsStreaming: !isDoc,
-      workers: 16
-    });
+      console.log(`📤 Uploading ${parts.length} parts sequentially...`);
+
+      for (let i = 0; i < parts.length; i++) {
+        const partName = parts[i];
+        const partPath = path.join(tempDir, partName);
+        const partStats = fs.statSync(partPath);
+        
+        const partCaption = 
+          `<b>💎 IDS MOVIE PLANET</b>\n\n` +
+          `📦 <b>Part:</b> <code>${i + 1} / ${parts.length}</code>\n` +
+          `📁 <b>Name:</b> <code>${displayName}</code>\n` +
+          `⚖️ <b>Size:</b> <code>${humanBytes(partStats.size)}</code>\n\n` +
+          `📝 <i>Use ZArchiver or 7-Zip to extract.</i>\n` +
+          `🏷 <b>By:</b> ${CHANNEL}`;
+
+        console.log(`  -> Uploading Part ${i + 1}...`);
+        await client.sendFile(chatId, {
+          file: partPath,
+          thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
+          forceDocument: true,
+          caption: partCaption,
+          parseMode: "html",
+          workers: 16
+        });
+      }
+    } else {
+      // Normal Upload
+      console.log(`📤 Uploading as ${isDoc ? "Document" : "Video/Audio"}...`);
+      const fileSize = humanBytes(stats.size);
+      const duration = (mode === "c2v") ? getDuration(sendPath) : "N/A";
+
+      const captionText =
+        `<b>💎 IDS MOVIE PLANET</b>\n\n` +
+        `${mode === "dl_audio" ? "🎵 " : (isDoc ? "📁 " : "🎥 ")}<b>Name:</b> <code>${displayName}</code>\n` +
+        `📦 <b>Size:</b> <code>${fileSize}</code>\n` +
+        (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
+        `\n🏷 <b>By:</b> ${CHANNEL}`;
+
+      await client.sendFile(chatId, {
+        file: sendPath,
+        thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
+        forceDocument: isDoc,
+        caption: captionText,
+        parseMode: "html",
+        supportsStreaming: !isDoc,
+        workers: 16
+      });
+    }
 
     console.log("✨ Mission complete!");
   } catch (err) {
