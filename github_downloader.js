@@ -168,13 +168,14 @@ function getDuration(filePath) {
 
     if (stats.size > LIMIT) {
       console.log(`📦 File size (${humanBytes(stats.size)}) exceeds limit (${humanBytes(LIMIT)}). Splitting...`);
-      const archiveBase = path.join(tempDir, `part_archive.zip`);
+      const uniqueBase = `split_${Date.now()}.zip`;
+      const archiveBase = path.join(tempDir, uniqueBase);
 
       // Use 7z to split the file into volumes
       execSync(`7z a -v${splitMB}m "${archiveBase}" "${sendPath}"`, { stdio: "inherit" });
 
       const parts = fs.readdirSync(tempDir)
-        .filter(f => f.startsWith("part_archive.zip."))
+        .filter(f => f.startsWith(uniqueBase + "."))
         .sort();
 
       console.log(`📤 Uploading ${parts.length} parts sequentially...`);
