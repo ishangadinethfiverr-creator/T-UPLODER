@@ -182,7 +182,8 @@ function getDuration(filePath) {
 
       for (let i = 0; i < parts.length; i++) {
         const partExt = parts[i].split(".").pop(); // e.g. "001"
-        const finalPartName = `${displayName}.7z.${partExt}`;
+        // User prefers .zip naming for familiarity. Magic bytes ensure ZArchiver still reads it as 7z.
+        const finalPartName = `${displayName}.zip.${partExt}`;
         const oldPartPath = path.join(tempDir, parts[i]);
         const newPartPath = path.join(tempDir, finalPartName);
 
