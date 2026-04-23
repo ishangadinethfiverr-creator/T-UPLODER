@@ -158,33 +158,37 @@ function getDuration(filePath) {
 
     // ══════════════ 4. SPLIT & UPLOAD ══════════════
     const stats = fs.statSync(sendPath);
-    
+
     // Default limit is 1.9GB, but can be overridden by SPLIT_LIMIT (in MB) for testing
     let splitMB = 1900;
     if (process.env.SPLIT_LIMIT && !isNaN(parseInt(process.env.SPLIT_LIMIT))) {
       splitMB = parseInt(process.env.SPLIT_LIMIT);
     }
-    const LIMIT = splitMB * 1024 * 1024; 
+    const LIMIT = splitMB * 1024 * 1024;
 
     if (stats.size > LIMIT) {
       console.log(`📦 File size (${humanBytes(stats.size)}) exceeds limit (${humanBytes(LIMIT)}). Splitting...`);
-      const archiveBase = path.join(tempDir, `${displayName}.zip`);
-      
+      const archiveBase = path.join(tempDir, `part_archive.zip`);
+
       // Use 7z to split the file into volumes
       execSync(`7z a -v${splitMB}m "${archiveBase}" "${sendPath}"`, { stdio: "inherit" });
-      
+
       const parts = fs.readdirSync(tempDir)
-        .filter(f => f.startsWith(displayName) && f.includes(".zip."))
+        .filter(f => f.startsWith("part_archive.zip."))
         .sort();
 
       console.log(`📤 Uploading ${parts.length} parts sequentially...`);
 
       for (let i = 0; i < parts.length; i++) {
-        const partName = parts[i];
-        const partPath = path.join(tempDir, partName);
-        const partStats = fs.statSync(partPath);
-        
-        const partCaption = 
+        const partExt = parts[i].split(".").pop(); // e.g. "001"
+        const finalPartName = `${displayName}.zip.${partExt}`;
+        const oldPartPath = path.join(tempDir, parts[i]);
+        const newPartPath = path.join(tempDir, finalPartName);
+
+        fs.renameSync(oldPartPath, newPartPath);
+        const partStats = fs.statSync(newPartPath);
+
+        const partCaption =
           `<b>💎 IDS MOVIE PLANET</b>\n\n` +
           `📦 <b>Part:</b> <code>${i + 1} / ${parts.length}</code>\n` +
           `📁 <b>Name:</b> <code>${displayName}</code>\n` +
@@ -192,9 +196,9 @@ function getDuration(filePath) {
           `📝 <i>Use ZArchiver or 7-Zip to extract.</i>\n` +
           `🏷 <b>By:</b> ${CHANNEL}`;
 
-        console.log(`  -> Uploading Part ${i + 1}...`);
+        console.log(`  -> Uploading Part ${i + 1}: ${finalPartName}`);
         await client.sendFile(chatId, {
-          file: partPath,
+          file: newPartPath,
           thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
           forceDocument: true,
           caption: partCaption,
