@@ -120,7 +120,8 @@ function getDuration(filePath) {
     }
 
     // ══════════════ 3. BRANDING & RENAMING ══════════════
-    if (mode === "c2v") {
+    const isVideo = finalFilePath.match(/\.(mp4|mkv|avi|webm|mov)$/i);
+    if (mode === "c2v" && isVideo) {
       const outPath = path.join(tempDir, `branded_${Date.now()}.mp4`);
       console.log("🛠 Injecting metadata & thumbnail...");
       const origExt = path.extname(finalFilePath) || ".mp4";
