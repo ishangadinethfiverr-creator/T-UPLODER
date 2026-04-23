@@ -168,11 +168,11 @@ function getDuration(filePath) {
 
     if (stats.size > LIMIT) {
       console.log(`📦 File size (${humanBytes(stats.size)}) exceeds limit (${humanBytes(LIMIT)}). Splitting...`);
-      const uniqueBase = `split_${Date.now()}.zip`;
+      const uniqueBase = `split_${Date.now()}.7z`;
       const archiveBase = path.join(tempDir, uniqueBase);
 
       // Use 7z to split the file into volumes
-      execSync(`7z a -v${splitMB}m "${archiveBase}" "${sendPath}"`, { stdio: "inherit" });
+      execSync(`7z a -t7z -mx=0 -v${splitMB}m "${archiveBase}" "${sendPath}"`, { stdio: "inherit" });
 
       const parts = fs.readdirSync(tempDir)
         .filter(f => f.startsWith(uniqueBase + "."))
@@ -182,7 +182,7 @@ function getDuration(filePath) {
 
       for (let i = 0; i < parts.length; i++) {
         const partExt = parts[i].split(".").pop(); // e.g. "001"
-        const finalPartName = `${displayName}.zip.${partExt}`;
+        const finalPartName = `${displayName}.7z.${partExt}`;
         const oldPartPath = path.join(tempDir, parts[i]);
         const newPartPath = path.join(tempDir, finalPartName);
 
