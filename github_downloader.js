@@ -120,8 +120,7 @@ function getDuration(filePath) {
     }
 
     // ══════════════ 3. BRANDING & RENAMING ══════════════
-    const isVideo = finalFilePath.match(/\.(mp4|mkv|avi|webm|mov)$/i);
-    if (mode === "c2v" && isVideo) {
+    if (mode === "c2v") {
       const outPath = path.join(tempDir, `branded_${Date.now()}.mp4`);
       console.log("🛠 Injecting metadata & thumbnail...");
       const origExt = path.extname(finalFilePath) || ".mp4";
@@ -129,15 +128,19 @@ function getDuration(filePath) {
 
       let cmd = `ffmpeg -i "${finalFilePath}" `;
       if (thumbPath && fs.existsSync(thumbPath)) {
-        // Map 0 (video) and Map 1 (thumbnail), embed as attached_pic
         cmd += `-i "${thumbPath}" -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic `;
       } else {
         cmd += `-c copy `;
       }
 
       cmd += `-metadata title="${actualNamePart}" -metadata author="${CHANNEL}" -metadata comment="Processed by IDS" -y "${outPath}"`;
-      execSync(cmd, { stdio: "inherit" });
-      finalFilePath = outPath;
+      
+      try {
+        execSync(cmd, { stdio: "inherit" });
+        finalFilePath = outPath;
+      } catch (e) {
+        console.log("⚠️ FFmpeg branding skipped (likely not a media file).");
+      }
     }
 
     let displayName = path.basename(finalFilePath, path.extname(finalFilePath));
