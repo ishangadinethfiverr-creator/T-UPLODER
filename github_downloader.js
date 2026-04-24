@@ -1,5 +1,5 @@
 /**
-GitHub Downloader v11 - Cleaned & Thumbnail Fixed
+GitHub Downloader v11.3 - Cleaned & Thumbnail Fixed (With Queue System)
 */
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
@@ -40,10 +40,10 @@ function getDuration(filePath) {
 }
 
 (async () => {
-  console.log(`🚀 v11 | Mode: ${mode} | Chat: ${chatId}`);
+  console.log(`🚀 v11.3 | Mode: ${mode} | Chat: ${chatId}`);
   fs.ensureDirSync(tempDir);
   let finalFilePath = "";
-  let thumbPath = null; // ✅ Fixed: initialize as null
+  let thumbPath = null;
   const client = new TelegramClient(stringSession, apiId, apiHash, { connectionRetries: 5 });
   await client.start({ botAuthToken: botToken });
 
@@ -56,7 +56,6 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        // Added --extractor-args to bypass YouTube bot checks
         execSync(`yt-dlp --extractor-args "youtube:player_client=android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       }
     } else {
@@ -65,7 +64,7 @@ function getDuration(filePath) {
       if (sourceMsgId && !isNaN(sourceMsgId)) {
         const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
         if (msgs && msgs.length > 0 && msgs[0].media) {
-          console.log("⬇️ Downloading large file via GramJS (No 20MB Limit)...");
+          console.log("⬇️ Downloading large file via GramJS...");
           let origExt = ".mp4";
           if (msgs[0].document) {
             const attrs = msgs[0].document.attributes;
@@ -98,7 +97,6 @@ function getDuration(filePath) {
     // ══════════════ 2. GET THUMBNAIL ══════════════
     const isDoc = (mode === "c2d");
 
-    // ✅ Fixed: Removed spaces & fixed && syntax
     if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
       const rawThumb = path.join(tempDir, "raw_thumb.jpg");
       console.log("🛠 Downloading Custom Thumbnail...");
@@ -128,7 +126,6 @@ function getDuration(filePath) {
 
       let cmd = `ffmpeg -i "${finalFilePath}" `;
       if (thumbPath && fs.existsSync(thumbPath)) {
-        // Map 0 (video) and Map 1 (thumbnail), embed as attached_pic
         cmd += `-i "${thumbPath}" -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic `;
       } else {
         cmd += `-c copy `;
@@ -140,7 +137,7 @@ function getDuration(filePath) {
     }
 
     let displayName = path.basename(finalFilePath, path.extname(finalFilePath));
-    let sendPath = finalFilePath; // ✅ Fixed variable name
+    let sendPath = finalFilePath;
     const finalExt = isDoc ? (path.extname(finalFilePath) || ".mp4") : ((mode === "dl_audio") ? ".mp3" : ".mp4");
 
     if (newName) {
@@ -169,7 +166,6 @@ function getDuration(filePath) {
       (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
       `\n🏷 <b>By:</b> ${CHANNEL}`;
 
-    // ✅ Fixed: Clean thumb condition (works for both Video & Doc)
     await client.sendFile(chatId, {
       file: sendPath,
       thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
@@ -188,6 +184,18 @@ function getDuration(filePath) {
       text: `❌ <b>Error processing file:</b>\n<code>${err.message.substring(0, 500)}</code>`
     }).catch(() => { });
   }
+
+  // >>> NEW TRIGGER NEXT QUEUE ITEM <<<
+  const workerUrl = process.env.WORKER_URL;
+  if (workerUrl && workerUrl !== "undefined" && workerUrl !== "null") {
+    console.log(`🔄 Triggering next task in queue via: ${workerUrl}`);
+    try {
+      await axios.post(workerUrl, { action: "task_complete", bot_token: botToken });
+    } catch (e) {
+      console.error("⚠️ Failed to trigger queue:", e.message);
+    }
+  }
+
   fs.removeSync(tempDir);
   process.exit(0);
 })();
