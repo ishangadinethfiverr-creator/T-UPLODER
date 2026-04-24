@@ -241,6 +241,17 @@ function getDuration(filePath) {
       text: `❌ <b>Error processing file:</b>\n<code>${err.message.substring(0, 500)}</code>`
     }).catch(() => { });
   }
+  
+  const workerUrl = process.env.WORKER_URL;
+  if (workerUrl && workerUrl !== "undefined" && workerUrl !== "null") {
+    console.log(`🔄 Triggering next task in queue via: ${workerUrl}`);
+    try {
+      await axios.post(workerUrl, { action: "task_complete", bot_token: botToken });
+    } catch (e) {
+      console.error("⚠️ Failed to trigger queue:", e.message);
+    }
+  }
+
   fs.removeSync(tempDir);
   process.exit(0);
 })();
