@@ -1,5 +1,5 @@
 /**
-GitHub Downloader v11 - Cleaned & Thumbnail Fixed
+GitHub Downloader v11.3 - Cleaned & Thumbnail Fixed (With Queue System)
 */
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
@@ -40,10 +40,10 @@ function getDuration(filePath) {
 }
 
 (async () => {
-  console.log(`🚀 v11 | Mode: ${mode} | Chat: ${chatId}`);
+  console.log(`🚀 v11.3 | Mode: ${mode} | Chat: ${chatId}`);
   fs.ensureDirSync(tempDir);
   let finalFilePath = "";
-  let thumbPath = null; // ✅ Fixed: initialize as null
+  let thumbPath = null;
   const client = new TelegramClient(stringSession, apiId, apiHash, { connectionRetries: 5 });
   await client.start({ botAuthToken: botToken });
 
@@ -56,7 +56,6 @@ function getDuration(filePath) {
         execSync(`yt-dlp -f bestaudio --extract-audio --audio-format mp3 --no-check-certificate -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       } else {
         finalFilePath = path.join(tempDir, `video_${Date.now()}.mp4`);
-        // Added --extractor-args to bypass YouTube bot checks
         execSync(`yt-dlp --extractor-args "youtube:player_client=android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --no-check-certificate --merge-output-format mp4 -o "${finalFilePath}" "${url}"`, { stdio: "inherit" });
       }
     } else {
@@ -65,7 +64,7 @@ function getDuration(filePath) {
       if (sourceMsgId && !isNaN(sourceMsgId)) {
         const msgs = await client.getMessages(chatId, { ids: [sourceMsgId] });
         if (msgs && msgs.length > 0 && msgs[0].media) {
-          console.log("⬇️ Downloading large file via GramJS (No 20MB Limit)...");
+          console.log("⬇️ Downloading large file via GramJS...");
           let origExt = ".mp4";
           if (msgs[0].document) {
             const attrs = msgs[0].document.attributes;
@@ -98,7 +97,6 @@ function getDuration(filePath) {
     // ══════════════ 2. GET THUMBNAIL ══════════════
     const isDoc = (mode === "c2d");
 
-    // ✅ Fixed: Removed spaces & fixed && syntax
     if (thumbFileId && thumbFileId !== "null" && thumbFileId !== "undefined") {
       const rawThumb = path.join(tempDir, "raw_thumb.jpg");
       console.log("🛠 Downloading Custom Thumbnail...");
@@ -134,17 +132,12 @@ function getDuration(filePath) {
       }
 
       cmd += `-metadata title="${actualNamePart}" -metadata author="${CHANNEL}" -metadata comment="Processed by IDS" -y "${outPath}"`;
-      
-      try {
-        execSync(cmd, { stdio: "inherit" });
-        finalFilePath = outPath;
-      } catch (e) {
-        console.log("⚠️ FFmpeg branding skipped (likely not a media file).");
-      }
+      execSync(cmd, { stdio: "inherit" });
+      finalFilePath = outPath;
     }
 
     let displayName = path.basename(finalFilePath, path.extname(finalFilePath));
-    let sendPath = finalFilePath; // ✅ Fixed variable name
+    let sendPath = finalFilePath;
     const finalExt = isDoc ? (path.extname(finalFilePath) || ".mp4") : ((mode === "dl_audio") ? ".mp3" : ".mp4");
 
     if (newName) {
@@ -160,81 +153,28 @@ function getDuration(filePath) {
       displayName = cleanName;
     }
 
-    // ══════════════ 4. SPLIT & UPLOAD ══════════════
+    // ══════════════ 4. UPLOAD ══════════════
+    console.log(`📤 Uploading as ${isDoc ? "Document" : "Video/Audio"}...`);
     const stats = fs.statSync(sendPath);
+    const fileSize = humanBytes(stats.size);
+    const duration = (mode === "c2v") ? getDuration(sendPath) : "N/A";
 
-    // Default limit is 1.9GB, but can be overridden by SPLIT_LIMIT (in MB) for testing
-    let splitMB = 1900;
-    if (process.env.SPLIT_LIMIT && !isNaN(parseInt(process.env.SPLIT_LIMIT))) {
-      splitMB = parseInt(process.env.SPLIT_LIMIT);
-    }
-    const LIMIT = splitMB * 1024 * 1024;
+    const captionText =
+      `<b>💎 IDS MOVIE PLANET</b>\n\n` +
+      `${mode === "dl_audio" ? "🎵 " : (isDoc ? "📁 " : "🎥 ")}<b>Name:</b> <code>${displayName}</code>\n` +
+      `📦 <b>Size:</b> <code>${fileSize}</code>\n` +
+      (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
+      `\n🏷 <b>By:</b> ${CHANNEL}`;
 
-    if (stats.size > LIMIT) {
-      console.log(`📦 File size (${humanBytes(stats.size)}) exceeds limit (${humanBytes(LIMIT)}). Splitting...`);
-      const uniqueBase = `split_${Date.now()}.7z`;
-      const archiveBase = path.join(tempDir, uniqueBase);
-
-      // Use 7z to split the file into volumes
-      execSync(`7z a -t7z -mx=0 -v${splitMB}m "${archiveBase}" "${sendPath}"`, { stdio: "inherit" });
-
-      const parts = fs.readdirSync(tempDir)
-        .filter(f => f.startsWith(uniqueBase + "."))
-        .sort();
-
-      console.log(`📤 Uploading ${parts.length} parts sequentially...`);
-
-      for (let i = 0; i < parts.length; i++) {
-        const partExt = parts[i].split(".").pop(); // e.g. "001"
-        // Kept as .7z.xxx so it doesn't conflict with files that are already named .zip.001
-        const finalPartName = `${displayName}.7z.${partExt}`;
-        const oldPartPath = path.join(tempDir, parts[i]);
-        const newPartPath = path.join(tempDir, finalPartName);
-
-        fs.renameSync(oldPartPath, newPartPath);
-        const partStats = fs.statSync(newPartPath);
-
-        const partCaption =
-          `<b>💎 IDS MOVIE PLANET</b>\n\n` +
-          `📦 <b>Part:</b> <code>${i + 1} / ${parts.length}</code>\n` +
-          `📁 <b>Name:</b> <code>${displayName}</code>\n` +
-          `⚖️ <b>Size:</b> <code>${humanBytes(partStats.size)}</code>\n\n` +
-          `📝 <i>Use ZArchiver or 7-Zip to extract.</i>\n` +
-          `🏷 <b>By:</b> ${CHANNEL}`;
-
-        console.log(`  -> Uploading Part ${i + 1}: ${finalPartName}`);
-        await client.sendFile(chatId, {
-          file: newPartPath,
-          thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
-          forceDocument: true,
-          caption: partCaption,
-          parseMode: "html",
-          workers: 16
-        });
-      }
-    } else {
-      // Normal Upload
-      console.log(`📤 Uploading as ${isDoc ? "Document" : "Video/Audio"}...`);
-      const fileSize = humanBytes(stats.size);
-      const duration = (mode === "c2v") ? getDuration(sendPath) : "N/A";
-
-      const captionText =
-        `<b>💎 IDS MOVIE PLANET</b>\n\n` +
-        `${mode === "dl_audio" ? "🎵 " : (isDoc ? "📁 " : "🎥 ")}<b>Name:</b> <code>${displayName}</code>\n` +
-        `📦 <b>Size:</b> <code>${fileSize}</code>\n` +
-        (mode === "c2v" ? `⏰ <b>Duration:</b> <code>${duration}</code>\n` : "") +
-        `\n🏷 <b>By:</b> ${CHANNEL}`;
-
-      await client.sendFile(chatId, {
-        file: sendPath,
-        thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
-        forceDocument: isDoc,
-        caption: captionText,
-        parseMode: "html",
-        supportsStreaming: !isDoc,
-        workers: 16
-      });
-    }
+    await client.sendFile(chatId, {
+      file: sendPath,
+      thumb: (thumbPath && fs.existsSync(thumbPath)) ? thumbPath : undefined,
+      forceDocument: isDoc,
+      caption: captionText,
+      parseMode: "html",
+      supportsStreaming: !isDoc,
+      workers: 16
+    });
 
     console.log("✨ Mission complete!");
   } catch (err) {
@@ -244,7 +184,8 @@ function getDuration(filePath) {
       text: `❌ <b>Error processing file:</b>\n<code>${err.message.substring(0, 500)}</code>`
     }).catch(() => { });
   }
-  
+
+  // >>> NEW TRIGGER NEXT QUEUE ITEM <<<
   const workerUrl = process.env.WORKER_URL;
   if (workerUrl && workerUrl !== "undefined" && workerUrl !== "null") {
     console.log(`🔄 Triggering next task in queue via: ${workerUrl}`);
