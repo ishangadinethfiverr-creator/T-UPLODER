@@ -11,10 +11,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
+      - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg p7zip-full
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,13 +34,6 @@ jobs:
             -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      # ffmpeg: c2v + c2d modes (thumb standardize + metadata inject)
-      - name: Install ffmpeg + ffprobe
-        if: |
-          github.event.client_payload.mode == 'c2v' ||
-          github.event.client_payload.mode == 'c2d'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Run Processing Script
         env:
           MODE:           ${{ github.event.client_payload.mode }}
@@ -50,8 +43,11 @@ jobs:
           SOURCE_MSG_ID:  ${{ github.event.client_payload.source_msg_id }}
           THUMB_FILE_ID:  ${{ github.event.client_payload.thumb_file_id }}
           NEW_NAME:       ${{ github.event.client_payload.new_name }}
-          # ✅ GitHub Secrets හරහා - hardcode නැහැ
+          SPLIT_LIMIT:    ${{ github.event.client_payload.split_limit }}
+          # ✅ API Credentials taken from GitHub Secrets (Same for all bots)
           API_ID:         ${{ secrets.API_ID }}
           API_HASH:       ${{ secrets.API_HASH }}
-          BOT_TOKEN:      ${{ secrets.BOT_TOKEN }}
+          # ✅ BOT_TOKEN passed dynamically from Cloudflare Worker
+          BOT_TOKEN:      ${{ github.event.client_payload.bot_token }}
+          WORKER_URL:     ${{ github.event.client_payload.worker_url }}
         run: node github_downloader.js
