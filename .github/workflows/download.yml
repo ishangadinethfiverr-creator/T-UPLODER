@@ -49,4 +49,5 @@ jobs:
           API_HASH:       ${{ secrets.API_HASH }}
           # ✅ BOT_TOKEN passed dynamically from Cloudflare Worker
           BOT_TOKEN:      ${{ github.event.client_payload.bot_token }}
+          WORKER_URL:     ${{ github.event.client_payload.worker_url }}
         run: node github_downloader.js
